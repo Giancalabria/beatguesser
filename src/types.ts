@@ -1,0 +1,57 @@
+export type Pool = 'easy' | 'medium' | 'hard' | 'expert' | 'impossible';
+
+export type GameMode = 'daily' | 'infinite';
+
+export interface Song {
+  id: string;
+  title: string;
+  artist: string;
+  pool: Pool;
+  itunesSearchTerm: string;
+  previewUrl?: string;
+}
+
+export interface DailyResult {
+  pool: Pool;
+  won: boolean;
+  segmentsUsed: number;
+  maxSegment: number;
+  songId: string;
+  songTitle: string;
+  songArtist: string;
+}
+
+export interface DailyState {
+  dateKey: string;
+  results: Partial<Record<Pool, DailyResult>>;
+}
+
+export const POOLS: Pool[] = ['easy', 'medium', 'hard', 'expert', 'impossible'];
+
+export const CLIP_MARKS = [0.1, 0.5, 1, 3, 7, 15] as const;
+
+export const POOL_COLORS: Record<Pool, string> = {
+  easy: '#C8FF00',
+  medium: '#FFD60A',
+  hard: '#FF9F0A',
+  expert: '#FF453A',
+  impossible: '#BF5AF2',
+};
+
+export const POOL_LABELS: Record<Pool, string> = {
+  easy: 'Fácil',
+  medium: 'Medio',
+  hard: 'Difícil',
+  expert: 'Experto',
+  impossible: 'Imposible',
+};
+
+export const POOL_EMOJI: Record<Pool, string> = {
+  easy: '🟩',
+  medium: '🟨',
+  hard: '🟧',
+  expert: '🟥',
+  impossible: '🟪',
+};
+
+export const INFINITE_LIVES = 3;

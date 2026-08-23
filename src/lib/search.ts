@@ -1,0 +1,79 @@
+import { getAllSongs } from './catalog';
+import type { Song } from '../types';
+
+const STOP_WORDS = new Set(['the', 'el', 'la', 'los', 'las', 'a', 'an']);
+
+function normalize(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function tokenize(text: string): string[] {
+  return normalize(text)
+    .split(' ')
+    .filter((t) => t.length > 0 && !STOP_WORDS.has(t));
+}
+
+function similarity(query: string, song: Song): number {
+  const qTokens = tokenize(query);
+  if (qTokens.length === 0) return 0;
+
+  const haystack = normalize(`${song.title} ${song.artist}`);
+  const songTokens = tokenize(`${song.title} ${song.artist}`);
+
+  let matches = 0;
+  for (const qt of qTokens) {
+    if (haystack.includes(qt)) {
+      matches++;
+      continue;
+    }
+    for (const st of songTokens) {
+      if (st.startsWith(qt) || qt.startsWith(st)) {
+        matches += 0.8;
+        break;
+      }
+    }
+  }
+
+  const coverage = matches / qTokens.length;
+  const fullNorm = normalize(query);
+  const songNorm = normalize(`${song.title} ${song.artist}`);
+  const exactBonus = songNorm === fullNorm ? 1 : songNorm.includes(fullNorm) ? 0.5 : 0;
+
+  return coverage + exactBonus;
+}
+
+export function searchSongs(query: string, limit = 8): Song[] {
+  const trimmed = query.trim();
+  if (trimmed.length === 0) return [];
+
+  const songs = getAllSongs();
+  return songs
+    .map((song) => ({ song, score: similarity(trimmed, song) }))
+    .filter(({ score }) => score >= 0.5)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map(({ song }) => song);
+}
+
+export function matchSong(query: string): Song | null {
+  const results = searchSongs(query, 1);
+  if (results.length === 0) return null;
+
+  const trimmed = query.trim();
+  const top = results[0];
+  const score = similarity(trimmed, top);
+  return score >= 0.6 ? top : null;
+}
+
+export function isCorrectGuess(query: string, target: Song): boolean {
+  const match = matchSong(query);
+  return match?.id === target.id;
+}
+
+export { normalize, similarity };
