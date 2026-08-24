@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { track } from '@vercel/analytics/react';
 import type { DailyResult, DailyState, GameMode, Pool, Song } from '../types';
 import {
   CLIP_MARKS,
@@ -125,6 +126,15 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
   const songRequestRef = useRef(0);
   const progressFrameRef = useRef<number | null>(null);
   const timersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const sessionAnalyticsRef = useRef({
+    startedAt: Date.now(),
+    clipsPlayed: 0,
+    guesses: 0,
+    roundsCompleted: 0,
+    score: 0,
+    pool: 'easy' as Pool,
+    ended: false,
+  });
 
   const accent = POOL_COLORS[pool];
   const currentDuration = CLIP_MARKS[segmentIndex];
@@ -138,6 +148,28 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     (dailyPool) => getPoolStatus(dailyState, dailyPool) === 'won',
   ).length;
   const feedbackId = 'guess-feedback';
+  const trackSessionEnd = useCallback(
+    (reason: 'home' | 'page_exit') => {
+      const session = sessionAnalyticsRef.current;
+      if (session.ended) return;
+      session.ended = true;
+      track('Game Session Ended', {
+        mode,
+        pool: session.pool,
+        reason,
+        duration_seconds: Math.round((Date.now() - session.startedAt) / 1000),
+        clips_played: session.clipsPlayed,
+        guesses: session.guesses,
+        rounds_completed: session.roundsCompleted,
+        score: session.score,
+      });
+    },
+    [mode],
+  );
+  const handleHome = useCallback(() => {
+    trackSessionEnd('home');
+    onHome();
+  }, [onHome, trackSessionEnd]);
   const searchCandidates = useMemo(() => {
     const byLabel = new Map(
       searchCatalog.map((song) => [
@@ -291,6 +323,14 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
   );
 
   useEffect(() => {
+    const handlePageHide = (event: PageTransitionEvent) => {
+      if (!event.persisted) trackSessionEnd('page_exit');
+    };
+    window.addEventListener('pagehide', handlePageHide);
+    return () => window.removeEventListener('pagehide', handlePageHide);
+  }, [trackSessionEnd]);
+
+  useEffect(() => {
     const clipper = clipperRef.current;
     clipper.setPlayingChangeListener((playing) => setIsPlaying(playing));
     clipper.setErrorListener((error) => {
@@ -403,6 +443,13 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
       void clipperRef.current
         .play(currentDuration)
         .then(() => {
+          sessionAnalyticsRef.current.clipsPlayed += 1;
+          track('Clip Played', {
+            mode,
+            pool,
+            clip_seconds: currentDuration,
+            segment: segmentIndex + 1,
+          });
           setIsPlaying(true);
           startProgressTracking();
         })
@@ -415,7 +462,11 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
   };
 
   const finishRound = useCallback(
-    (won: boolean, attemptCount = attempts) => {
+    (
+      won: boolean,
+      attemptCount = attempts,
+      completion: 'correct_guess' | 'surrender' = won ? 'correct_guess' : 'surrender',
+    ) => {
       clipperRef.current.stop();
       setIsPlaying(false);
       setRoundStatus(won ? 'won' : 'lost');
@@ -432,8 +483,29 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
           songTitle: currentSong.title,
           songArtist: currentSong.artist,
         };
-        setDailyState(saveDailyResult(getDateKey(), result));
+        const nextDailyState = saveDailyResult(getDateKey(), result);
+        setDailyState(nextDailyState);
         setShowResultDialog(true);
+        sessionAnalyticsRef.current.roundsCompleted += 1;
+        track('Round Completed', {
+          mode,
+          pool,
+          result: won ? 'won' : 'lost',
+          completion,
+          attempts: attemptCount,
+          clip_seconds: CLIP_MARKS[segmentIndex],
+        });
+
+        const completedPools = POOLS.filter(
+          (dailyPool) => getPoolStatus(nextDailyState, dailyPool) !== 'pending',
+        );
+        if (completedPools.length === POOLS.length) {
+          track('Daily Challenge Completed', {
+            pools_won: POOLS.filter(
+              (dailyPool) => getPoolStatus(nextDailyState, dailyPool) === 'won',
+            ).length,
+          });
+        }
       }
     },
     [mode, currentSong, pool, segmentIndex, attempts],
@@ -449,6 +521,17 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
       const nextUsed = new Set(usedIds);
       if (currentSong) nextUsed.add(currentSong.id);
       setUsedIds(nextUsed);
+      sessionAnalyticsRef.current.roundsCompleted += 1;
+      track('Round Completed', {
+        mode,
+        pool,
+        result: 'lost',
+        completion: 'out_of_segments',
+        attempts,
+        clip_seconds: CLIP_MARKS[segmentIndex],
+        score,
+        lives_remaining: Math.max(newLives, 0),
+      });
 
       if (newLives <= 0) {
         setLives(0);
@@ -456,6 +539,12 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
         setInfiniteOver(true);
         saveInfiniteHighScore(pool, score);
         setHighScore((hs) => Math.max(hs, score));
+        track('Infinite Game Completed', {
+          pool,
+          score,
+          session_rounds_completed: sessionAnalyticsRef.current.roundsCompleted,
+          is_new_high_score: score > highScore,
+        });
       } else {
         setLives(newLives);
         setRevealSong(true);
@@ -475,7 +564,10 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     currentSong,
     pool,
     score,
+    highScore,
     usedIds,
+    attempts,
+    segmentIndex,
     initInfiniteSong,
     schedule,
   ]);
@@ -520,14 +612,36 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     const correct = selectedSong
       ? isCorrectGuess('', currentSong, selectedSong)
       : isCorrectGuess(text, currentSong);
+    sessionAnalyticsRef.current.guesses += 1;
+    track('Guess Submitted', {
+      mode,
+      pool,
+      correct,
+      attempt: nextAttempts,
+      clip_seconds: currentDuration,
+      used_autocomplete: Boolean(selectedSong),
+    });
 
     if (correct) {
       setGuessFeedback({ kind: 'correct', message: t('feedback.correct') });
       if (mode === 'infinite') {
         const nextUsed = new Set(usedIds);
+        const nextScore = score + 1;
         nextUsed.add(currentSong.id);
         setScore((s) => s + 1);
         setUsedIds(nextUsed);
+        sessionAnalyticsRef.current.roundsCompleted += 1;
+        sessionAnalyticsRef.current.score = nextScore;
+        track('Round Completed', {
+          mode,
+          pool,
+          result: 'won',
+          completion: 'correct_guess',
+          attempts: nextAttempts,
+          clip_seconds: currentDuration,
+          score: nextScore,
+          lives_remaining: lives,
+        });
         schedule(() => {
           setGuessFeedback(null);
           setSegmentIndex(0);
@@ -560,6 +674,13 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     songRequestRef.current += 1;
     setIsPlaying(false);
     setPool(p);
+    sessionAnalyticsRef.current.pool = p;
+    sessionAnalyticsRef.current.score = 0;
+    track('Difficulty Selected', {
+      mode,
+      pool: p,
+      previous_pool: pool,
+    });
     setSegmentIndex(0);
     setRoundStatus('playing');
     setQuery('');
@@ -601,6 +722,11 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     setPoolLocked(true);
     setRoundStatus('playing');
     setSegmentIndex(0);
+    sessionAnalyticsRef.current.score = 0;
+    track('Infinite Game Restarted', {
+      pool,
+      previous_score: score,
+    });
     void initInfiniteSong(pool, new Set());
   };
 
@@ -608,6 +734,14 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     const text = buildShareText(mode, pool, completedResult, score);
     try {
       await navigator.clipboard.writeText(text);
+      track('Result Shared', {
+        mode,
+        pool,
+        method: 'copy',
+        result:
+          mode === 'daily' ? (completedResult?.won ? 'won' : 'lost') : 'game_over',
+        score: mode === 'infinite' ? score : undefined,
+      });
       setCopyError(false);
       setCopied(true);
       schedule(() => setCopied(false), 2000);
@@ -626,8 +760,24 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
           text: message,
           url,
         });
+        track('Result Shared', {
+          mode,
+          pool,
+          method: 'native',
+          result:
+            mode === 'daily' ? (completedResult?.won ? 'won' : 'lost') : 'game_over',
+          score: mode === 'infinite' ? score : undefined,
+        });
       } else {
         await navigator.clipboard.writeText(buildShareText(mode, pool, completedResult, score, url));
+        track('Result Shared', {
+          mode,
+          pool,
+          method: 'copy_fallback',
+          result:
+            mode === 'daily' ? (completedResult?.won ? 'won' : 'lost') : 'game_over',
+          score: mode === 'infinite' ? score : undefined,
+        });
       }
       setCopyError(false);
       setCopied(true);
@@ -647,7 +797,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
         <div className="hidden lg:flex justify-center mb-5">
           <button
             type="button"
-            onClick={onHome}
+            onClick={handleHome}
             className="group flex items-center gap-3 rounded-full px-4 py-2 text-left transition-colors hover:bg-white/5"
             aria-label={t('game.backHome')}
           >
@@ -666,7 +816,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
           <div className="grid grid-cols-3 items-center gap-2">
             <button
               type="button"
-              onClick={onHome}
+              onClick={handleHome}
               className="justify-self-start inline-flex items-center gap-1 h-9 -ml-2 pl-2 pr-3 rounded-full text-sm text-neutral-400 hover:text-white hover:bg-white/5 transition-colors"
             >
               <BackIcon />
