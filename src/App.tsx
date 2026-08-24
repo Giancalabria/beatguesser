@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import type { GameMode } from './types';
 import Home from './components/Home';
 import PlayScreen from './components/PlayScreen';
@@ -17,6 +18,7 @@ export default function App() {
           mode={mode}
           onHome={() => setScreen('home')}
         />
+        <Analytics />
       </ErrorBoundary>
     );
   }
@@ -29,6 +31,7 @@ export default function App() {
           setScreen('play');
         }}
       />
+      <Analytics />
     </ErrorBoundary>
   );
 }
