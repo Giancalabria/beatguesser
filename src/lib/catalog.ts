@@ -44,6 +44,8 @@ const spotifySearchCache = new Map<
   string,
   { expiresAt: number; songs: Song[] }
 >();
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 interface ITunesResult {
   results?: Array<{
@@ -94,7 +96,7 @@ async function fetchPreviewFromITunes(
   if (cached) return cached;
 
   try {
-    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=song&limit=5`;
+    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=song&country=AR&limit=25`;
     const res = await fetch(url);
     if (!res.ok) {
       logDev('iTunes search failed', term, res.status);
@@ -155,6 +157,41 @@ export async function probePreviewUrl(url: string, timeoutMs = 8_000): Promise<b
 
 function itunesTermFor(song: Song): string {
   return song.itunesSearchTerm || `${song.title} ${song.artist}`;
+}
+
+function isTemporaryDeezerPreview(url: string): boolean {
+  try {
+    return new URL(url).hostname.toLocaleLowerCase().endsWith('dzcdn.net');
+  } catch {
+    return false;
+  }
+}
+
+interface RefreshedPreviewResponse {
+  previewUrl?: unknown;
+}
+
+async function refreshRemotePreview(song: Song): Promise<string | undefined> {
+  if (!UUID_PATTERN.test(song.id)) return undefined;
+
+  const supabase = getSupabase();
+  if (!supabase) return undefined;
+
+  try {
+    const { data, error } = await supabase.functions.invoke<RefreshedPreviewResponse>(
+      'resolve-preview',
+      { body: { songId: song.id } },
+    );
+    if (error) throw error;
+    const previewUrl = data?.previewUrl;
+    if (typeof previewUrl === 'string' && previewUrl.length > 0) {
+      logDev('remote preview refreshed', song.id);
+      return previewUrl;
+    }
+  } catch (error) {
+    logDev('remote preview refresh unavailable', song.id, error);
+  }
+  return undefined;
 }
 
 export function getSeedCatalog(): Song[] {
@@ -308,13 +345,21 @@ export async function searchSpotifyCatalog(
  */
 export async function resolveSongPreview(song: Song): Promise<Song> {
   const term = itunesTermFor(song);
+  const requiresRefresh = Boolean(
+    song.previewUrl && isTemporaryDeezerPreview(song.previewUrl),
+  );
 
-  if (song.previewUrl) {
+  if (song.previewUrl && !requiresRefresh) {
     const ok = await probePreviewUrl(song.previewUrl);
     if (ok) {
       return song;
     }
-    logDev('stored preview broken, trying iTunes', song.id, song.previewUrl);
+    logDev('stored preview broken, refreshing remotely', song.id, song.previewUrl);
+  }
+
+  const refreshedPreview = await refreshRemotePreview(song);
+  if (refreshedPreview) {
+    return { ...song, previewUrl: refreshedPreview };
   }
 
   const previewUrl = await fetchPreviewFromITunes(term, song.title, song.artist);

@@ -202,8 +202,8 @@ async function pickPool(
 
   const preview =
     track.preview_url ??
-    (await deezerPreview(track.external_ids?.isrc)) ??
-    (await itunesPreview(track.name, track.artists[0]?.name ?? ""));
+    (await itunesPreview(track.name, track.artists[0]?.name ?? "")) ??
+    (await deezerPreview(track.external_ids?.isrc));
 
   if (rule.require_preview && !preview) {
     return { date, pool, status: "no_preview", spotify_id: track.id };
@@ -428,7 +428,9 @@ async function deezerPreview(isrc?: string): Promise<string | null> {
 async function itunesPreview(title: string, artist: string): Promise<string | null> {
   try {
     const term = encodeURIComponent(`${title} ${artist}`);
-    const res = await fetch(`https://itunes.apple.com/search?term=${term}&entity=song&limit=5`);
+    const res = await fetch(
+      `https://itunes.apple.com/search?term=${term}&entity=song&country=AR&limit=25`,
+    );
     if (!res.ok) return null;
     const data = await res.json();
     const targetTitle = normalizeMediaLabel(title);

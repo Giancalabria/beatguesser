@@ -13,7 +13,7 @@
     "pick:force": "node scripts/pick.mjs --force",
     "pick:today": "node scripts/pick.mjs --today --force",
     "db:push": "supabase db push",
-    "fn:deploy": "supabase functions deploy pick-daily search-songs"
+    "fn:deploy": "supabase functions deploy pick-daily search-songs resolve-preview"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

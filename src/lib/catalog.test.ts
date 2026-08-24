@@ -8,7 +8,7 @@ vi.mock('./supabase', () => ({
   }),
 }));
 
-import { searchSpotifyCatalog } from './catalog';
+import { resolveSongPreview, searchSpotifyCatalog } from './catalog';
 
 describe('searchSpotifyCatalog', () => {
   beforeEach(() => {
@@ -56,5 +56,32 @@ describe('searchSpotifyCatalog', () => {
   it('does not call the API before two characters', async () => {
     await expect(searchSpotifyCatalog('a', 'easy')).resolves.toEqual([]);
     expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('refreshes temporary Deezer previews through the Edge Function', async () => {
+    invoke.mockResolvedValue({
+      data: {
+        previewUrl: 'https://audio-ssl.itunes.apple.com/fresh-preview.m4a',
+      },
+      error: null,
+    });
+
+    await expect(
+      resolveSongPreview({
+        id: '123e4567-e89b-42d3-a456-426614174000',
+        title: 'Girl',
+        artist: 'Myke Towers',
+        pool: 'easy',
+        itunesSearchTerm: 'Girl Myke Towers',
+        previewUrl:
+          'https://cdnt-preview.dzcdn.net/api/1/preview.mp3?hdnea=exp=1~acl=/*',
+      }),
+    ).resolves.toMatchObject({
+      previewUrl: 'https://audio-ssl.itunes.apple.com/fresh-preview.m4a',
+    });
+
+    expect(invoke).toHaveBeenCalledWith('resolve-preview', {
+      body: { songId: '123e4567-e89b-42d3-a456-426614174000' },
+    });
   });
 });

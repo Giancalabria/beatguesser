@@ -3,3 +3,6 @@ verify_jwt = false
 
 [functions.search-songs]
 verify_jwt = false
+
+[functions.resolve-preview]
+verify_jwt = false
