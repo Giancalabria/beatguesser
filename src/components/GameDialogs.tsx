@@ -68,6 +68,9 @@ interface DailyResultDialogProps {
   result: DailyResult | undefined;
   shared: boolean;
   shareError: boolean;
+  streak?: number;
+  perfectDay?: boolean;
+  fullClear?: boolean;
   onShare: () => void;
   onClose: () => void;
 }
@@ -89,6 +92,9 @@ export function DailyResultDialog({
   result,
   shared,
   shareError,
+  streak = 0,
+  perfectDay = false,
+  fullClear = false,
   onShare,
   onClose,
 }: DailyResultDialogProps) {
@@ -107,6 +113,7 @@ export function DailyResultDialog({
   const seconds = result
     ? CLIP_MARKS[result.maxSegment] ?? CLIP_MARKS[CLIP_MARKS.length - 1]
     : CLIP_MARKS[0];
+  const perfect = won && result?.maxSegment === 0;
 
   return (
     <dialog
@@ -141,11 +148,27 @@ export function DailyResultDialog({
             />
           </div>
           <div
-            className="victory-stamp relative mx-auto mt-5 w-fit rounded-full border-2 px-4 py-2 text-sm font-black uppercase"
-            style={{ borderColor: accent, color: accent }}
+            className={`victory-stamp relative mx-auto mt-5 w-fit rounded-full border-2 px-4 py-2 text-sm font-black uppercase ${perfect ? 'perfect-stamp' : ''}`}
+            style={{ borderColor: perfect ? '#FFD60A' : accent, color: perfect ? '#FFD60A' : accent }}
           >
-            {t('dialogs.guessedIn', { seconds })}
+            {perfect ? t('dialogs.perfect') : t('dialogs.guessedIn', { seconds })}
           </div>
+          {perfect && (
+            <p className="relative mt-2 text-xs text-neutral-400">
+              {t('dialogs.perfectHint')} · {t('dialogs.guessedIn', { seconds })}
+            </p>
+          )}
+          {perfectDay && (
+            <p className="relative mt-2 text-sm font-semibold text-easy">{t('game.perfectDay')}</p>
+          )}
+          {fullClear && !perfectDay && (
+            <p className="relative mt-2 text-sm font-semibold text-easy">{t('game.fullClear')}</p>
+          )}
+          {streak > 0 && (
+            <p className="relative mt-2 text-sm font-semibold text-orange-300">
+              🔥 {t('game.streakLabel', { count: streak })}
+            </p>
+          )}
           {result?.attempts && (
             <p className="relative mt-3 text-xs text-neutral-500">
               {t('share.attempt', { count: result.attempts })}

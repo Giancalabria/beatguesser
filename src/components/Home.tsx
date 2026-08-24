@@ -3,8 +3,9 @@ import { useTranslation } from 'react-i18next';
 import type { GameMode } from '../types';
 import { POOLS } from '../types';
 import { getDateKey } from '../lib/daily';
-import { getPoolStatus, loadDailyState } from '../lib/storage';
+import { getPoolStatus, getVisibleStreak, loadDailyState } from '../lib/storage';
 import LanguageSwitcher from './LanguageSwitcher';
+import StreakBadge from './StreakBadge';
 
 interface HomeProps {
   onSelect: (mode: GameMode) => void;
@@ -22,6 +23,7 @@ export default function Home({ onSelect }: HomeProps) {
   const dailyCompleted = POOLS.filter(
     (pool) => getPoolStatus(dailyState, pool) !== 'pending',
   ).length;
+  const streak = getVisibleStreak(dateKey);
 
   return (
     <div className="relative min-h-dvh flex flex-col items-center justify-center">
@@ -38,6 +40,11 @@ export default function Home({ onSelect }: HomeProps) {
             <p className="text-neutral-400 text-sm sm:text-base">
               {t('home.tagline')}
             </p>
+            {streak.current > 0 && (
+              <div className="mt-3 flex justify-center">
+                <StreakBadge count={streak.current} />
+              </div>
+            )}
           </div>
 
           <div className="w-full flex flex-col gap-2.5">

@@ -115,6 +115,12 @@ input:focus-visible {
   box-shadow: 0 0 22px rgb(200 255 0 / 10%);
 }
 
+.perfect-stamp {
+  transform: rotate(-3deg);
+  box-shadow: 0 0 28px rgb(255 214 10 / 35%);
+  letter-spacing: 0.14em;
+}
+
 .victory-confetti {
   position: absolute;
   z-index: -1;

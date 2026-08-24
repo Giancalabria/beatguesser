@@ -26,9 +26,21 @@ export interface DailyResult {
   songImageUrl?: string;
 }
 
+export interface DailyProgress {
+  attempts: number;
+  segmentIndex: number;
+}
+
 export interface DailyState {
   dateKey: string;
   results: Partial<Record<Pool, DailyResult>>;
+  progress: Partial<Record<Pool, DailyProgress>>;
+}
+
+export interface DailyStreak {
+  current: number;
+  best: number;
+  lastCompletedDate: string | null;
 }
 
 export const POOLS: Pool[] = ['easy', 'medium', 'hard', 'expert', 'impossible'];

@@ -41,4 +41,17 @@ describe('share result', () => {
     expect(message).toContain('Can you guess it with less audio?');
     expect(message).not.toContain('http');
   });
+
+  it('adds PERFECT, streak and perfect-day lines', async () => {
+    await setLanguage('en');
+    const perfect: DailyResult = { ...result, maxSegment: 0, segmentsUsed: 1 };
+    const message = buildShareMessage('daily', 'easy', perfect, undefined, {
+      streak: 3,
+      perfectDay: true,
+    });
+
+    expect(message).toContain('PERFECT');
+    expect(message).toContain('🔥 3');
+    expect(message).toContain('Perfect day');
+  });
 });
