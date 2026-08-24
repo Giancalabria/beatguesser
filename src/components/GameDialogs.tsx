@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DailyResult, Song } from '../types';
 import { CLIP_MARKS, POOL_COLORS, POOL_I18N_KEYS } from '../types';
+import SongReveal from './SongReveal';
 
 interface SurrenderDialogProps {
   open: boolean;
@@ -44,7 +45,7 @@ export function SurrenderDialog({ open, onCancel, onConfirm }: SurrenderDialogPr
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 h-11 rounded-xl border border-neutral-600 px-4 text-sm text-neutral-200"
+            className="flex-1 h-11 rounded-xl bg-white/15 border border-white/40 px-4 text-sm font-semibold text-white hover:bg-white/25 hover:border-white/60 transition-colors"
           >
             {t('dialogs.keepTrying')}
           </button>
@@ -128,18 +129,17 @@ export function DailyResultDialog({
           <p className="relative text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-400">
             {t('common.daily')} · {result ? t(POOL_I18N_KEYS[result.pool]) : ''}
           </p>
-          <div className="victory-art relative mx-auto mt-5">
-            <img src="/favicon.svg" alt="" className="h-16 w-16" />
-          </div>
           <h2 id="daily-result-title" className="relative mt-5 text-3xl font-black text-white">
             {t('dialogs.victoryTitle')}
           </h2>
-          <p className="relative mt-3 text-xl font-bold leading-tight text-white">
-            {song?.title ?? result?.songTitle}
-          </p>
-          <p className="relative mt-1 text-sm text-neutral-400">
-            {song?.artist ?? result?.songArtist}
-          </p>
+          <div className="relative mt-5">
+            <SongReveal
+              title={song?.title ?? result?.songTitle ?? ''}
+              artist={song?.artist ?? result?.songArtist ?? ''}
+              imageUrl={song?.imageUrl ?? result?.songImageUrl}
+              spotifyId={song?.spotifyId ?? result?.songSpotifyId}
+            />
+          </div>
           <div
             className="victory-stamp relative mx-auto mt-5 w-fit rounded-full border-2 px-4 py-2 text-sm font-black uppercase"
             style={{ borderColor: accent, color: accent }}
@@ -191,10 +191,15 @@ export function DailyResultDialog({
             <h2 id="daily-result-title" className="text-2xl font-bold text-expert">
               {t('dialogs.songLost')}
             </h2>
-            <p className="mt-3 text-lg font-semibold text-white">
-              {song?.title ?? result?.songTitle}
-            </p>
-            <p className="text-neutral-400">{song?.artist ?? result?.songArtist}</p>
+            <div className="mt-4">
+              <SongReveal
+                title={song?.title ?? result?.songTitle ?? ''}
+                artist={song?.artist ?? result?.songArtist ?? ''}
+                imageUrl={song?.imageUrl ?? result?.songImageUrl}
+                spotifyId={song?.spotifyId ?? result?.songSpotifyId}
+                size="sm"
+              />
+            </div>
           </div>
           <button
             type="button"

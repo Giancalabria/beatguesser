@@ -20,6 +20,8 @@
 html {
   height: 100%;
   overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -43,6 +45,13 @@ input,
 button {
   font-family: inherit;
   touch-action: manipulation;
+}
+
+/* iOS zooms focused inputs below 16px and leaves the page zoomed. */
+input,
+textarea,
+select {
+  font-size: 1rem;
 }
 
 button:focus-visible,

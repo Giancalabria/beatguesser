@@ -8,7 +8,7 @@ vi.mock('./supabase', () => ({
   }),
 }));
 
-import { getBackupSongs, getSongsByPool, resolveSongPreview, searchSpotifyCatalog } from './catalog';
+import { getBackupSongs, getSongsByPool, resolveSongPreview, searchSpotifyCatalog, spotifyUrlForSong, upgradeItunesArtwork } from './catalog';
 
 describe('searchSpotifyCatalog', () => {
   beforeEach(() => {
@@ -130,5 +130,34 @@ describe('searchSpotifyCatalog', () => {
     expect(getSongsByPool('impossible').map((song) => song.title)).toEqual(
       expect.arrayContaining(['The Scientist', 'Take Me to Church', 'Pumped Up Kicks']),
     );
+  });
+});
+
+describe('song reveal links', () => {
+  it('upgrades iTunes artwork to a larger square', () => {
+    expect(
+      upgradeItunesArtwork(
+        'https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/ab/cd/ef/100x100bb.jpg',
+      ),
+    ).toBe('https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/ab/cd/ef/600x600bb.jpg');
+  });
+
+  it('links to the Spotify track when an id is available', () => {
+    expect(
+      spotifyUrlForSong({
+        spotifyId: 'abc123',
+        title: 'Blinding Lights',
+        artist: 'The Weeknd',
+      }),
+    ).toBe('https://open.spotify.com/track/abc123');
+  });
+
+  it('falls back to a Spotify search when the track id is missing', () => {
+    expect(
+      spotifyUrlForSong({
+        title: 'Blinding Lights',
+        artist: 'The Weeknd',
+      }),
+    ).toBe('https://open.spotify.com/search/Blinding%20Lights%20The%20Weeknd');
   });
 });

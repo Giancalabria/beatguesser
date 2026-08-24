@@ -10,6 +10,7 @@ export interface Song {
   pool: Pool;
   itunesSearchTerm: string;
   previewUrl?: string;
+  imageUrl?: string;
 }
 
 export interface DailyResult {
@@ -21,6 +22,8 @@ export interface DailyResult {
   songId: string;
   songTitle: string;
   songArtist: string;
+  songSpotifyId?: string;
+  songImageUrl?: string;
 }
 
 export interface DailyState {

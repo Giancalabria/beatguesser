@@ -69,7 +69,7 @@ export default function SongCombobox({
           }
         }}
         placeholder={t('combobox.placeholder')}
-        className={`w-full h-11 bg-white/5 border rounded-xl px-4 text-sm text-white placeholder:text-neutral-500 focus:outline-none transition-colors ${
+        className={`w-full h-11 bg-white/5 border rounded-xl px-4 text-base text-white placeholder:text-neutral-500 focus:outline-none transition-colors ${
           invalid
             ? 'border-expert focus:border-expert'
             : 'border-neutral-700 focus:border-neutral-500'

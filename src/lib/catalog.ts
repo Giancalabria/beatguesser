@@ -38,7 +38,12 @@ const SEED_SONGS: Omit<Song, 'previewUrl'>[] = [
   { id: 'i5', title: 'Pumped Up Kicks', artist: 'Foster the People', pool: 'impossible', itunesSearchTerm: 'Pumped Up Kicks Foster the People' },
 ];
 
-const previewCache = new Map<string, string>();
+interface ITunesMatch {
+  previewUrl?: string;
+  imageUrl?: string;
+}
+
+const itunesCache = new Map<string, ITunesMatch>();
 const searchCatalogCache = new Map<Pool, Song[]>();
 const spotifySearchCache = new Map<
   string,
@@ -54,7 +59,23 @@ interface ITunesResult {
     previewUrl?: string;
     trackName?: string;
     artistName?: string;
+    artworkUrl100?: string;
   }>;
+}
+
+export function upgradeItunesArtwork(url: string): string {
+  return url.replace(/\d+x\d+([a-z]*)(\.[a-z]+)(\?.*)?$/i, '600x600$1$2$3');
+}
+
+export function spotifyUrlForSong(song: {
+  spotifyId?: string;
+  title: string;
+  artist: string;
+}): string {
+  if (song.spotifyId) {
+    return `https://open.spotify.com/track/${song.spotifyId}`;
+  }
+  return `https://open.spotify.com/search/${encodeURIComponent(`${song.title} ${song.artist}`)}`;
 }
 
 function logDev(...args: unknown[]): void {
@@ -103,12 +124,12 @@ function matchesExpectedITunesResult(
   return Boolean(titleMatches && targetArtist && actualArtist.includes(targetArtist));
 }
 
-async function fetchPreviewFromITunes(
+async function fetchMatchFromITunes(
   term: string,
   expectedTitle: string,
   expectedArtist: string,
-): Promise<string | undefined> {
-  const cached = previewCache.get(term);
+): Promise<ITunesMatch> {
+  const cached = itunesCache.get(term);
   if (cached) return cached;
 
   for (const country of ITUNES_STOREFRONTS) {
@@ -123,16 +144,25 @@ async function fetchPreviewFromITunes(
       }
 
       const data = (await res.json()) as ITunesResult;
-      const matched = data.results?.find(
-        (result) =>
-          result.previewUrl &&
+      const matched =
+        data.results?.find(
+          (result) =>
+            result.previewUrl &&
+            matchesExpectedITunesResult(result, expectedTitle, expectedArtist),
+        ) ??
+        data.results?.find((result) =>
           matchesExpectedITunesResult(result, expectedTitle, expectedArtist),
-      );
-      const previewUrl = matched?.previewUrl;
-      if (previewUrl) {
-        previewCache.set(term, previewUrl);
-        logDev('iTunes preview resolved', term, country);
-        return previewUrl;
+        );
+      if (matched) {
+        const match: ITunesMatch = {
+          previewUrl: matched.previewUrl,
+          imageUrl: matched.artworkUrl100
+            ? upgradeItunesArtwork(matched.artworkUrl100)
+            : undefined,
+        };
+        itunesCache.set(term, match);
+        logDev('iTunes match resolved', term, country);
+        return match;
       }
       logDev('iTunes search empty', term, country);
     } catch (err) {
@@ -141,7 +171,7 @@ async function fetchPreviewFromITunes(
       clearTimeout(timeout);
     }
   }
-  return undefined;
+  return {};
 }
 
 function itunesTermFor(song: Song): string {
@@ -353,8 +383,13 @@ export async function searchSpotifyCatalog(
   }
 }
 
+export interface SongMedia {
+  previewUrls: string[];
+  imageUrl?: string;
+}
+
 /** Resolve every available source in failover order for one song. */
-export async function resolveSongPreviewUrls(song: Song): Promise<string[]> {
+export async function resolveSongMedia(song: Song): Promise<SongMedia> {
   const term = itunesTermFor(song);
   const requiresRefresh = Boolean(
     song.previewUrl && isTemporaryDeezerPreview(song.previewUrl),
@@ -365,23 +400,42 @@ export async function resolveSongPreviewUrls(song: Song): Promise<string[]> {
     candidates.push(song.previewUrl);
   }
 
-  const [refreshedPreview, previewUrl] = await Promise.all([
+  const [refreshedPreview, itunesMatch] = await Promise.all([
     refreshRemotePreview(song),
-    fetchPreviewFromITunes(term, song.title, song.artist),
+    fetchMatchFromITunes(term, song.title, song.artist),
   ]);
   if (refreshedPreview) {
     candidates.push(refreshedPreview);
   }
+  if (itunesMatch.previewUrl) candidates.push(itunesMatch.previewUrl);
 
-  if (previewUrl) candidates.push(previewUrl);
+  return {
+    previewUrls: [...new Set(candidates)],
+    imageUrl: song.imageUrl ?? itunesMatch.imageUrl,
+  };
+}
 
-  return [...new Set(candidates)];
+export async function resolveSongPreviewUrls(song: Song): Promise<string[]> {
+  const { previewUrls } = await resolveSongMedia(song);
+  return previewUrls;
+}
+
+export async function resolveSongArtwork(
+  title: string,
+  artist: string,
+): Promise<string | undefined> {
+  const { imageUrl } = await fetchMatchFromITunes(
+    `${title} ${artist}`,
+    title,
+    artist,
+  );
+  return imageUrl;
 }
 
 /** Backwards-compatible single-source resolver. */
 export async function resolveSongPreview(song: Song): Promise<Song> {
-  const [previewUrl] = await resolveSongPreviewUrls(song);
-  return { ...song, previewUrl };
+  const { previewUrls, imageUrl } = await resolveSongMedia(song);
+  return { ...song, previewUrl: previewUrls[0], imageUrl: imageUrl ?? song.imageUrl };
 }
 
 export async function resolveCatalogPreviews(songs: Song[]): Promise<Song[]> {

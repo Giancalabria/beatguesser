@@ -13,7 +13,7 @@ import { AudioClipper } from '../lib/clip';
 import {
   getBackupSongs,
   getSearchCatalog,
-  resolveSongPreviewUrls,
+  resolveSongMedia,
   searchSpotifyCatalog,
 } from '../lib/catalog';
 import { getDateKey, resolveDailySong } from '../lib/daily';
@@ -35,6 +35,7 @@ import ShareCard, {
 import { DailyResultDialog, SurrenderDialog } from './GameDialogs';
 import LanguageSwitcher from './LanguageSwitcher';
 import SongCombobox from './SongCombobox';
+import SongReveal from './SongReveal';
 
 interface PlayScreenProps {
   mode: GameMode;
@@ -235,8 +236,11 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
       for (const [songIndex, candidateSong] of songsToTry.entries()) {
         if (loadId !== loadIdRef.current) return;
         let previewUrls: string[] = [];
+        let imageUrl = candidateSong.imageUrl;
         try {
-          previewUrls = await resolveSongPreviewUrls(candidateSong);
+          const media = await resolveSongMedia(candidateSong);
+          previewUrls = media.previewUrls;
+          imageUrl = media.imageUrl ?? imageUrl;
         } catch (error) {
           logAudioDev('preview resolve failed', candidateSong.id, error);
         }
@@ -246,7 +250,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
           try {
             await clipperRef.current.load(previewUrl);
             if (loadId !== loadIdRef.current) return;
-            setCurrentSong({ ...candidateSong, previewUrl });
+            setCurrentSong({ ...candidateSong, previewUrl, imageUrl });
             setAudioReady(true);
             logAudioDev(
               songIndex === 0 ? 'ready' : 'backup ready',
@@ -482,6 +486,8 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
           songId: currentSong.id,
           songTitle: currentSong.title,
           songArtist: currentSong.artist,
+          songSpotifyId: currentSong.spotifyId,
+          songImageUrl: currentSong.imageUrl,
         };
         const nextDailyState = saveDailyResult(getDateKey(), result);
         setDailyState(nextDailyState);
@@ -642,12 +648,14 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
           score: nextScore,
           lives_remaining: lives,
         });
+        setRevealSong(true);
         schedule(() => {
+          setRevealSong(false);
           setGuessFeedback(null);
           setSegmentIndex(0);
           setQuery('');
           void initInfiniteSong(pool, nextUsed);
-        }, 1400);
+        }, 2200);
       } else {
         finishRound(true, nextAttempts);
       }
@@ -1025,7 +1033,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
                     type="button"
                     onClick={handleSkip}
                     disabled={guessFeedback !== null}
-                    className="h-11 px-4 rounded-xl bg-white/5 border border-neutral-700 text-neutral-300 text-sm font-medium hover:border-neutral-500 transition-colors disabled:opacity-40"
+                    className="h-11 px-4 rounded-xl bg-white/15 border border-white/40 text-white text-sm font-semibold hover:bg-white/25 hover:border-white/60 transition-colors disabled:opacity-40"
                   >
                     {mode === 'daily' && segmentIndex >= CLIP_MARKS.length - 1
                       ? t('game.surrender')
@@ -1046,26 +1054,27 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
           )}
 
           {revealSong && currentSong && mode === 'infinite' && (
-            <div className="flex-1 flex flex-col items-center justify-center gap-1.5 py-8">
-              <p className="text-neutral-500 text-xs sm:text-sm uppercase tracking-wider">
-                {t('game.was')}
-              </p>
-              <p className="text-lg sm:text-xl font-semibold text-white">{currentSong.title}</p>
-              <p className="text-neutral-400 text-sm sm:text-base">{currentSong.artist}</p>
+            <div className="flex-1 flex flex-col items-center justify-center py-8">
+              <SongReveal
+                title={currentSong.title}
+                artist={currentSong.artist}
+                imageUrl={currentSong.imageUrl}
+                spotifyId={currentSong.spotifyId}
+                caption={t('game.was')}
+                size="sm"
+              />
             </div>
           )}
 
           {mode === 'daily' && (poolDone || roundStatus !== 'playing') && (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 py-3 sm:py-6">
               {(currentSong || completedResult) && (
-                <div className="text-center">
-                  <p className="text-lg sm:text-xl font-semibold text-white">
-                    {currentSong?.title ?? completedResult?.songTitle}
-                  </p>
-                  <p className="text-sm text-neutral-400 sm:text-base">
-                    {currentSong?.artist ?? completedResult?.songArtist}
-                  </p>
-                </div>
+                <SongReveal
+                  title={currentSong?.title ?? completedResult?.songTitle ?? ''}
+                  artist={currentSong?.artist ?? completedResult?.songArtist ?? ''}
+                  imageUrl={currentSong?.imageUrl ?? completedResult?.songImageUrl}
+                  spotifyId={currentSong?.spotifyId ?? completedResult?.songSpotifyId}
+                />
               )}
               <p
                 className="text-base sm:text-xl font-semibold"
@@ -1092,6 +1101,8 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
                         songId: currentSong.id,
                         songTitle: currentSong.title,
                         songArtist: currentSong.artist,
+                        songSpotifyId: currentSong.spotifyId,
+                        songImageUrl: currentSong.imageUrl,
                       }
                     : undefined)
                 }
@@ -1112,10 +1123,13 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
           {infiniteOver && (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 py-3 sm:py-6">
               {currentSong && roundStatus === 'lost' && (
-                <div className="text-center mb-1">
-                  <p className="text-lg sm:text-xl font-semibold text-white">{currentSong.title}</p>
-                  <p className="text-sm text-neutral-400 sm:text-base">{currentSong.artist}</p>
-                </div>
+                <SongReveal
+                  title={currentSong.title}
+                  artist={currentSong.artist}
+                  imageUrl={currentSong.imageUrl}
+                  spotifyId={currentSong.spotifyId}
+                  size="sm"
+                />
               )}
               <p className="text-xl sm:text-2xl font-bold" style={{ color: accent }}>
                 {t('game.gameOver')}
