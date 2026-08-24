@@ -94,7 +94,11 @@ const resources = {
       share: {
         copied: '¡Copiado!',
         copyResult: 'Copiar resultado',
+        shareResult: 'Compartir resultado',
+        shared: '¡Compartido!',
         copyError: 'No se pudo copiar. Revisá los permisos del navegador.',
+        dailyChallenge: '¿Podés adivinarla con menos audio?',
+        infiniteChallenge: '¿Cuántas canciones podés adivinar?',
         attempt_one: '{{count}} intento',
         attempt_other: '{{count}} intentos',
         infiniteTitle: 'BeatGuesser Infinito',
@@ -109,6 +113,9 @@ const resources = {
         surrenderConfirm: 'Rendirme',
         songWon: '¡Canción acertada!',
         songLost: 'Canción fallada',
+        victoryTitle: '¡Adivinaste!',
+        guessedIn: 'Adivinada en {{seconds}} s',
+        continue: 'Continuar',
         viewResult: 'Ver resultado',
       },
       errorBoundary: {
@@ -208,7 +215,11 @@ const resources = {
       share: {
         copied: 'Copied!',
         copyResult: 'Copy result',
+        shareResult: 'Share result',
+        shared: 'Shared!',
         copyError: 'Could not copy. Check your browser permissions.',
+        dailyChallenge: 'Can you guess it with less audio?',
+        infiniteChallenge: 'How many songs can you guess?',
         attempt_one: '{{count}} attempt',
         attempt_other: '{{count}} attempts',
         infiniteTitle: 'BeatGuesser Infinite',
@@ -223,6 +234,9 @@ const resources = {
         surrenderConfirm: 'Give up',
         songWon: 'Song guessed!',
         songLost: 'Song missed',
+        victoryTitle: 'You got it!',
+        guessedIn: 'Guessed in {{seconds}} s',
+        continue: 'Continue',
         viewResult: 'View result',
       },
       errorBoundary: {

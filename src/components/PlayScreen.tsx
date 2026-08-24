@@ -26,7 +26,11 @@ import {
   saveDailyResult,
   saveInfiniteHighScore,
 } from '../lib/storage';
-import ShareCard, { buildShareText } from './ShareCard';
+import ShareCard, {
+  buildShareMessage,
+  buildShareText,
+  getShareUrl,
+} from './ShareCard';
 import { DailyResultDialog, SurrenderDialog } from './GameDialogs';
 import LanguageSwitcher from './LanguageSwitcher';
 import SongCombobox from './SongCombobox';
@@ -612,6 +616,28 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     }
   };
 
+  const handleShareResult = async () => {
+    const message = buildShareMessage(mode, pool, completedResult, score);
+    const url = getShareUrl();
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: 'BeatGuesser',
+          text: message,
+          url,
+        });
+      } else {
+        await navigator.clipboard.writeText(buildShareText(mode, pool, completedResult, score, url));
+      }
+      setCopyError(false);
+      setCopied(true);
+      schedule(() => setCopied(false), 2000);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      setCopyError(true);
+    }
+  };
+
   const showPlayArea =
     !poolDone && !infiniteOver && roundStatus === 'playing' && !revealSong;
 
@@ -989,6 +1015,9 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
         open={showResultDialog}
         song={currentSong}
         result={completedResult}
+        shared={copied}
+        shareError={copyError}
+        onShare={() => void handleShareResult()}
         onClose={() => setShowResultDialog(false)}
       />
     </div>

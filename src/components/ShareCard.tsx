@@ -38,7 +38,17 @@ export default function ShareCard({ mode, pool, result, score, onCopy, copied }:
   );
 }
 
-export function buildShareText(mode: GameMode, pool: Pool, result?: DailyResult, score?: number): string {
+export function getShareUrl(): string {
+  if (typeof window === 'undefined') return '';
+  return new URL('/', window.location.href).toString();
+}
+
+export function buildShareMessage(
+  mode: GameMode,
+  pool: Pool,
+  result?: DailyResult,
+  score?: number,
+): string {
   const dateKey = getDateKey();
   const maxMark = result ? CLIP_MARKS[result.maxSegment] ?? CLIP_MARKS[CLIP_MARKS.length - 1] : CLIP_MARKS[0];
 
@@ -48,8 +58,19 @@ export function buildShareText(mode: GameMode, pool: Pool, result?: DailyResult,
       result.won && result.attempts
         ? ` · ${i18n.t('share.attempt', { count: result.attempts })}`
         : '';
-    return `BeatGuesser #${dateKey}\n${i18n.t(POOL_I18N_KEYS[pool])} ${POOL_EMOJI[pool]} ${outcome}${attempts}`;
+    return `${i18n.t('share.dailyChallenge')}\nBeatGuesser #${dateKey}\n${i18n.t(POOL_I18N_KEYS[pool])} ${POOL_EMOJI[pool]} ${outcome}${attempts}`;
   }
   const songCount = score ?? 0;
-  return `${i18n.t('share.infiniteTitle')}\n${i18n.t(POOL_I18N_KEYS[pool])} ${POOL_EMOJI[pool]} — ${i18n.t('share.songs', { count: songCount })}`;
+  return `${i18n.t('share.infiniteChallenge')}\n${i18n.t('share.infiniteTitle')}\n${i18n.t(POOL_I18N_KEYS[pool])} ${POOL_EMOJI[pool]} — ${i18n.t('share.songs', { count: songCount })}`;
+}
+
+export function buildShareText(
+  mode: GameMode,
+  pool: Pool,
+  result?: DailyResult,
+  score?: number,
+  shareUrl = getShareUrl(),
+): string {
+  const message = buildShareMessage(mode, pool, result, score);
+  return shareUrl ? `${message}\n${shareUrl}` : message;
 }
