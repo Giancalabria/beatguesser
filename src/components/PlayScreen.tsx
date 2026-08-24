@@ -44,7 +44,7 @@ const MAX_CLIP_DURATION = CLIP_MARKS[CLIP_MARKS.length - 1];
 function HeartIcon({ filled, color }: { filled: boolean; color: string }) {
   return (
     <svg
-      className="w-6 h-6 sm:w-7 sm:h-7"
+      className="w-5 h-5 sm:w-6 sm:h-6"
       viewBox="0 0 24 24"
       fill={filled ? color : 'none'}
       stroke={color}
@@ -55,9 +55,17 @@ function HeartIcon({ filled, color }: { filled: boolean; color: string }) {
   );
 }
 
+function BackIcon() {
+  return (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25">
+      <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function PlayIcon() {
   return (
-    <svg className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10" viewBox="0 0 24 24" fill="currentColor">
+    <svg className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 ml-0.5" viewBox="0 0 24 24" fill="currentColor">
       <polygon points="8,5 8,19 19,12" />
     </svg>
   );
@@ -65,7 +73,7 @@ function PlayIcon() {
 
 function PauseIcon() {
   return (
-    <svg className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10" viewBox="0 0 24 24" fill="currentColor">
+    <svg className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" viewBox="0 0 24 24" fill="currentColor">
       <rect x="6" y="5" width="4" height="14" />
       <rect x="14" y="5" width="4" height="14" />
     </svg>
@@ -609,7 +617,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
 
   return (
     <div className="min-h-dvh flex flex-col">
-      <div className="screen-shell flex-1 flex flex-col justify-start md:justify-center">
+      <div className="screen-shell flex-1 flex flex-col md:justify-center">
         <div className="hidden lg:flex justify-center mb-5">
           <button
             type="button"
@@ -628,42 +636,47 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
             </span>
           </button>
         </div>
-        <div className="screen-panel w-full max-w-3xl mx-auto flex flex-col gap-5 sm:gap-6 md:gap-8">
-          <div className="flex items-center justify-between gap-3">
+        <div className="screen-panel w-full max-w-3xl mx-auto flex flex-col flex-1 md:flex-none gap-3 sm:gap-5 md:gap-8">
+          <div className="grid grid-cols-3 items-center gap-2">
             <button
               type="button"
               onClick={onHome}
-              className="text-neutral-400 hover:text-white text-sm sm:text-base transition-colors"
+              className="justify-self-start inline-flex items-center gap-1 h-9 -ml-2 pl-2 pr-3 rounded-full text-sm text-neutral-400 hover:text-white hover:bg-white/5 transition-colors"
             >
-              ← Inicio
+              <BackIcon />
+              Inicio
             </button>
-            <span className="text-xs sm:text-sm text-neutral-500 uppercase tracking-wider">
+            <span className="justify-self-center text-[11px] sm:text-xs font-medium text-neutral-500 uppercase tracking-[0.18em]">
               {mode === 'daily' ? 'Diario' : 'Infinito'}
             </span>
-            {mode === 'infinite' && !infiniteOver && (
-              <div
-                className="flex items-center gap-1"
-                aria-label={`${lives} ${lives === 1 ? 'vida restante' : 'vidas restantes'}`}
-              >
-                {Array.from({ length: INFINITE_LIVES }).map((_, i) => (
-                  <span key={i} aria-hidden="true">
-                    <HeartIcon filled={i < lives} color={accent} />
-                  </span>
-                ))}
-              </div>
-            )}
-            {mode === 'infinite' && infiniteOver && (
-              <span className="text-sm sm:text-base font-mono" style={{ color: accent }}>
-                {score} pts
-              </span>
-            )}
-            {mode === 'daily' && <div className="w-14 sm:w-16" />}
+            <div className="justify-self-end">
+              {mode === 'infinite' && !infiniteOver && (
+                <div
+                  className="flex items-center gap-0.5"
+                  aria-label={`${lives} ${lives === 1 ? 'vida restante' : 'vidas restantes'}`}
+                >
+                  {Array.from({ length: INFINITE_LIVES }).map((_, i) => (
+                    <span key={i} aria-hidden="true">
+                      <HeartIcon filled={i < lives} color={accent} />
+                    </span>
+                  ))}
+                </div>
+              )}
+              {mode === 'infinite' && infiniteOver && (
+                <span className="text-sm font-mono" style={{ color: accent }}>
+                  {score} pts
+                </span>
+              )}
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-2.5">
+          <div
+            className="flex rounded-full bg-black/40 p-1 border border-neutral-800"
+            role="group"
+            aria-label="Dificultad"
+          >
             {POOLS.map((p) => {
               const status = mode === 'daily' ? getPoolStatus(dailyState, p) : 'pending';
-              const done = status !== 'pending';
               const locked = mode === 'infinite' && poolLocked && p !== pool;
               const active = p === pool;
               const color = POOL_COLORS[p];
@@ -676,99 +689,60 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
                   type="button"
                   disabled={locked}
                   onClick={() => handlePoolChange(p)}
-                  className="min-h-14 px-3 py-2.5 sm:px-4 sm:py-3 rounded-2xl text-xs sm:text-sm font-semibold transition-all disabled:opacity-30"
+                  className="relative flex-1 min-w-0 h-8 sm:h-9 px-0.5 rounded-full text-[10px] sm:text-xs font-semibold tracking-tight leading-none whitespace-nowrap transition-all disabled:opacity-30"
                   style={{
-                    backgroundColor: active ? `${color}25` : '#1A1A1A',
+                    backgroundColor: active ? `${color}22` : 'transparent',
                     color: active ? color : statusColor ?? '#888',
-                    border: `2px solid ${active ? color : statusColor ?? '#333'}`,
+                    boxShadow: active ? `inset 0 0 0 1px ${color}` : undefined,
                   }}
                   aria-pressed={active}
                   aria-label={`${POOL_LABELS[p]}: ${
                     status === 'won' ? 'acertada' : status === 'lost' ? 'fallada' : 'pendiente'
                   }`}
                 >
-                  <span className="block">{POOL_LABELS[p]}</span>
-                  {done && (
-                    <span className="mt-0.5 block text-[10px] font-medium uppercase tracking-wide">
-                      {status === 'won' ? '✓ Acertada' : '✕ Fallada'}
-                    </span>
-                  )}
+                  {POOL_LABELS[p]}
                 </button>
               );
             })}
           </div>
 
           {mode === 'daily' && (
-            <p className="text-center text-xs sm:text-sm text-neutral-500" aria-live="polite">
+            <p className="text-center text-[11px] sm:text-xs text-neutral-500 -mt-1" aria-live="polite">
               {dailyCompletedCount}/5 completadas · {dailyWonCount}{' '}
               {dailyWonCount === 1 ? 'acertada' : 'acertadas'}
             </p>
           )}
 
           {mode === 'infinite' && !infiniteOver && (
-            <div className="text-center">
-              <span className="font-mono text-2xl sm:text-3xl font-semibold" style={{ color: accent }}>
+            <div className="text-center -mt-1">
+              <span className="font-mono text-xl sm:text-2xl font-semibold" style={{ color: accent }}>
                 {score}
               </span>
-              <span className="text-neutral-500 text-sm sm:text-base ml-2">canciones</span>
+              <span className="text-neutral-500 text-xs sm:text-sm ml-1.5">canciones</span>
               {highScore > 0 && (
-                <span className="text-neutral-600 text-xs sm:text-sm ml-3">récord: {highScore}</span>
+                <span className="text-neutral-600 text-[11px] sm:text-xs ml-2">récord {highScore}</span>
               )}
             </div>
           )}
 
           {showPlayArea && (
-            <div className="relative px-1">
-              <div
-                className="h-2.5 sm:h-3 bg-black/60 border border-neutral-800 rounded-full overflow-hidden shadow-inner"
-                role="progressbar"
-                aria-label="Progreso del fragmento de audio"
-                aria-valuemin={0}
-                aria-valuemax={currentDuration}
-                aria-valuenow={Math.min(playbackProgress, currentDuration)}
-              >
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${(playbackProgress / MAX_CLIP_DURATION) * 100}%`,
-                    backgroundColor: accent,
-                  }}
-                />
-              </div>
-              <div className="absolute inset-0 pointer-events-none">
-                {CLIP_MARKS.slice(0, -1).map((mark, i) => (
-                  <div
-                    key={mark}
-                    className="absolute top-1/2 w-0.5 h-4 sm:h-5 rounded-full -translate-x-1/2 -translate-y-1/2"
-                    style={{
-                      left: `${(mark / MAX_CLIP_DURATION) * 100}%`,
-                      backgroundColor: i === segmentIndex ? accent : '#444',
-                      opacity: i === segmentIndex ? 1 : 0.5,
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {showPlayArea && (
             <>
-              <div className="flex flex-col items-center gap-3">
-                <div className="flex items-center gap-4 sm:gap-6">
+              <div className="flex-1 flex flex-col items-center justify-center gap-8 sm:gap-10 min-h-32 py-2">
+                <div className="flex flex-col items-center gap-2.5 sm:gap-3">
                   <button
                     type="button"
                     onClick={handlePlay}
                     disabled={!audioReady || loading}
-                    className="w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40"
+                    className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
                     style={{
                       backgroundColor: accent,
                       color: '#0E0E0E',
-                      boxShadow: `0 0 40px ${accent}40`,
+                      boxShadow: `0 0 28px ${accent}38`,
                     }}
                     aria-label={isPlaying ? 'Pausar' : 'Reproducir'}
                   >
                     {loading ? (
-                      <span className="w-8 h-8 border-2 border-bg border-t-transparent rounded-full animate-spin" />
+                      <span className="w-6 h-6 border-2 border-bg border-t-transparent rounded-full animate-spin" />
                     ) : isPlaying ? (
                       <PauseIcon />
                     ) : (
@@ -776,11 +750,42 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
                     )}
                   </button>
                   <span
-                    className="font-mono text-3xl sm:text-4xl md:text-5xl font-semibold tabular-nums"
+                    className="font-mono text-2xl sm:text-3xl md:text-4xl font-semibold tabular-nums leading-none"
                     style={{ color: accent }}
                   >
                     {currentDuration}s
                   </span>
+                </div>
+                <div className="relative w-full px-1">
+                  <div
+                    className="h-1.5 sm:h-2 bg-white/10 rounded-full overflow-hidden"
+                    role="progressbar"
+                    aria-label="Progreso del fragmento de audio"
+                    aria-valuemin={0}
+                    aria-valuemax={currentDuration}
+                    aria-valuenow={Math.min(playbackProgress, currentDuration)}
+                  >
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${(playbackProgress / MAX_CLIP_DURATION) * 100}%`,
+                        backgroundColor: accent,
+                      }}
+                    />
+                  </div>
+                  <div className="absolute inset-0 pointer-events-none">
+                    {CLIP_MARKS.slice(0, -1).map((mark, i) => (
+                      <div
+                        key={mark}
+                        className="absolute top-1/2 w-px h-2.5 sm:h-3 rounded-full -translate-x-1/2 -translate-y-1/2"
+                        style={{
+                          left: `${(mark / MAX_CLIP_DURATION) * 100}%`,
+                          backgroundColor: i === segmentIndex ? accent : '#555',
+                          opacity: i === segmentIndex ? 1 : 0.7,
+                        }}
+                      />
+                    ))}
+                  </div>
                 </div>
                 {audioError && !loading && (
                   <div
@@ -791,7 +796,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
                     <button
                       type="button"
                       onClick={handleRetryAudio}
-                      className="rounded-full border border-neutral-600 px-4 py-2 text-xs font-medium text-white hover:border-neutral-400"
+                      className="rounded-xl border border-neutral-600 px-3.5 py-1.5 text-xs font-medium text-white hover:border-neutral-400"
                     >
                       Reintentar
                     </button>
@@ -807,7 +812,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
                   event.preventDefault();
                   handleGuess();
                 }}
-                className="flex flex-col gap-2 sm:gap-3"
+                className="flex flex-col gap-2 sm:gap-2.5"
               >
                 <SongCombobox
                   value={query}
@@ -819,11 +824,11 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
                     handleGuess(`${song.title} ${song.artist}`, song)
                   }
                 />
-                <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="submit"
                     disabled={!query.trim() || guessFeedback !== null}
-                    className="px-5 sm:px-6 py-3 sm:py-3.5 rounded-full font-semibold text-bg text-sm sm:text-base transition-opacity disabled:opacity-40"
+                    className="h-11 px-4 rounded-xl font-semibold text-bg text-sm transition-opacity disabled:opacity-40"
                     style={{ backgroundColor: accent }}
                   >
                     Adivinar
@@ -832,7 +837,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
                     type="button"
                     onClick={handleSkip}
                     disabled={guessFeedback !== null}
-                    className="px-5 sm:px-6 py-3 sm:py-3.5 rounded-full bg-surface border border-neutral-700 text-neutral-300 text-sm sm:text-base font-medium hover:border-neutral-500 transition-colors disabled:opacity-40"
+                    className="h-11 px-4 rounded-xl bg-white/5 border border-neutral-700 text-neutral-300 text-sm font-medium hover:border-neutral-500 transition-colors disabled:opacity-40"
                   >
                     {mode === 'daily' && segmentIndex >= CLIP_MARKS.length - 1
                       ? 'Rendirse'
@@ -855,27 +860,27 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
           )}
 
           {revealSong && currentSong && mode === 'infinite' && (
-            <div className="flex flex-col items-center gap-2 py-8 sm:py-12">
-              <p className="text-neutral-400 text-sm sm:text-base">Era...</p>
+            <div className="flex-1 flex flex-col items-center justify-center gap-1.5 py-8">
+              <p className="text-neutral-500 text-xs sm:text-sm uppercase tracking-wider">Era</p>
               <p className="text-lg sm:text-xl font-semibold text-white">{currentSong.title}</p>
-              <p className="text-neutral-400 sm:text-lg">{currentSong.artist}</p>
+              <p className="text-neutral-400 text-sm sm:text-base">{currentSong.artist}</p>
             </div>
           )}
 
           {mode === 'daily' && (poolDone || roundStatus !== 'playing') && (
-            <div className="flex flex-col items-center gap-4 py-4 sm:py-6">
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 py-3 sm:py-6">
               {(currentSong || completedResult) && (
                 <div className="text-center">
                   <p className="text-lg sm:text-xl font-semibold text-white">
                     {currentSong?.title ?? completedResult?.songTitle}
                   </p>
-                  <p className="text-neutral-400 sm:text-lg">
+                  <p className="text-sm text-neutral-400 sm:text-base">
                     {currentSong?.artist ?? completedResult?.songArtist}
                   </p>
                 </div>
               )}
               <p
-                className="text-xl sm:text-2xl font-bold"
+                className="text-base sm:text-xl font-semibold"
                 style={{
                   color: (completedResult?.won ?? roundStatus === 'won') ? accent : '#FF453A',
                 }}
@@ -917,20 +922,20 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
           )}
 
           {infiniteOver && (
-            <div className="flex flex-col items-center gap-4 py-4 sm:py-6">
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 py-3 sm:py-6">
               {currentSong && roundStatus === 'lost' && (
-                <div className="text-center mb-2">
+                <div className="text-center mb-1">
                   <p className="text-lg sm:text-xl font-semibold text-white">{currentSong.title}</p>
-                  <p className="text-neutral-400 sm:text-lg">{currentSong.artist}</p>
+                  <p className="text-sm text-neutral-400 sm:text-base">{currentSong.artist}</p>
                 </div>
               )}
-              <p className="text-2xl sm:text-3xl font-bold" style={{ color: accent }}>
+              <p className="text-xl sm:text-2xl font-bold" style={{ color: accent }}>
                 Game Over
               </p>
-              <p className="font-mono text-4xl sm:text-5xl font-bold" style={{ color: accent }}>
+              <p className="font-mono text-3xl sm:text-4xl font-bold leading-none" style={{ color: accent }}>
                 {score}
               </p>
-              <p className="text-neutral-400 text-sm sm:text-base">canciones adivinadas</p>
+              <p className="text-neutral-400 text-sm">canciones adivinadas</p>
               {score >= highScore && score > 0 && (
                 <p className="text-easy text-xs sm:text-sm">¡Nuevo récord!</p>
               )}
@@ -949,7 +954,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
               <button
                 type="button"
                 onClick={handleInfiniteRestart}
-                className="w-full py-4 sm:py-5 rounded-full font-semibold text-bg text-base sm:text-lg transition-colors mt-2"
+                className="w-full h-11 rounded-xl font-semibold text-bg text-sm sm:text-base transition-colors mt-1"
                 style={{ backgroundColor: accent }}
               >
                 Jugar de nuevo

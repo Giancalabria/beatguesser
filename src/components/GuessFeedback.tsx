@@ -11,11 +11,11 @@ export default function GuessFeedback({ id, kind, message }: GuessFeedbackProps)
       role="status"
       aria-live="polite"
       aria-atomic="true"
-      className="min-h-12 flex items-center justify-center"
+      className="flex items-center justify-center"
     >
       {kind && (
         <div
-          className={`guess-feedback w-full rounded-2xl border px-4 py-3 text-center text-sm sm:text-base font-medium ${
+          className={`guess-feedback w-full rounded-xl border px-3 py-2 text-center text-sm font-medium ${
             kind === 'correct'
               ? 'border-easy/40 bg-easy/10 text-easy'
               : 'border-expert/40 bg-expert/10 text-red-300'

@@ -41,14 +41,14 @@ export function SurrenderDialog({ open, onCancel, onConfirm }: SurrenderDialogPr
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 rounded-full border border-neutral-600 px-4 py-3 text-neutral-200"
+            className="flex-1 h-11 rounded-xl border border-neutral-600 px-4 text-sm text-neutral-200"
           >
             Seguir intentando
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="flex-1 rounded-full bg-expert px-4 py-3 font-semibold text-white"
+            className="flex-1 h-11 rounded-xl bg-expert px-4 text-sm font-semibold text-white"
           >
             Rendirme
           </button>
@@ -122,7 +122,7 @@ export function DailyResultDialog({
         <button
           type="button"
           onClick={onClose}
-          className="w-full rounded-full bg-white px-4 py-3 font-semibold text-bg"
+          className="w-full h-11 rounded-xl bg-white px-4 text-sm font-semibold text-bg"
         >
           Ver resultado
         </button>

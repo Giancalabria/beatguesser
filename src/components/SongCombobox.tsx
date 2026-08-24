@@ -67,7 +67,7 @@ export default function SongCombobox({
           }
         }}
         placeholder="¿Qué canción es?"
-        className={`w-full bg-surface border rounded-full px-4 sm:px-5 py-3 sm:py-3.5 text-sm sm:text-base text-white placeholder:text-neutral-500 focus:outline-none transition-colors ${
+        className={`w-full h-11 bg-white/5 border rounded-xl px-4 text-sm text-white placeholder:text-neutral-500 focus:outline-none transition-colors ${
           invalid
             ? 'border-expert focus:border-expert'
             : 'border-neutral-700 focus:border-neutral-500'
@@ -89,7 +89,7 @@ export default function SongCombobox({
         <ul
           id={listboxId}
           role="listbox"
-          className="absolute z-20 top-full left-0 right-0 mt-1 bg-surface border border-neutral-700 rounded-2xl overflow-hidden shadow-xl max-h-72 overflow-y-auto"
+          className="absolute z-20 top-full left-0 right-0 mt-1.5 bg-[#1A1A1A] border border-neutral-700 rounded-xl overflow-hidden shadow-xl max-h-64 overflow-y-auto"
         >
           {options.map((song, index) => (
             <li
@@ -97,7 +97,7 @@ export default function SongCombobox({
               key={song.id}
               role="option"
               aria-selected={index === activeIndex}
-              className={`cursor-pointer px-4 py-2.5 sm:py-3 text-sm sm:text-base transition-colors ${
+              className={`cursor-pointer px-4 py-2.5 text-sm transition-colors ${
                 index === activeIndex ? 'bg-neutral-700' : 'hover:bg-neutral-800'
               }`}
               onMouseDown={(event) => event.preventDefault()}

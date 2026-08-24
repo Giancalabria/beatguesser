@@ -33,7 +33,7 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="mt-6 w-full rounded-full bg-easy px-5 py-3 font-semibold text-bg"
+              className="mt-6 w-full h-11 rounded-xl bg-easy px-5 text-sm font-semibold text-bg"
             >
               Recargar
             </button>

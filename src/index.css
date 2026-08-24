@@ -42,6 +42,7 @@ body {
 input,
 button {
   font-family: inherit;
+  touch-action: manipulation;
 }
 
 button:focus-visible,
@@ -69,8 +70,8 @@ input:focus-visible {
   width: min(28rem, calc(100% - 2rem));
   margin: auto;
   border: 1px solid #3a3a3a;
-  border-radius: 1.5rem;
-  padding: 1.5rem;
+  border-radius: 1.25rem;
+  padding: 1.25rem;
   background: #1a1a1a;
   color: #ffffff;
   box-shadow: 0 24px 80px rgb(0 0 0 / 65%);
@@ -105,27 +106,32 @@ input:focus-visible {
   width: 100%;
   max-width: var(--max-width-screen-panel);
   margin-inline: auto;
-  padding-inline: 1rem;
-  padding-block: 1.5rem;
+  padding-inline: max(1.25rem, env(safe-area-inset-left), env(safe-area-inset-right));
+  padding-top: max(1rem, env(safe-area-inset-top));
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
 }
 
 @media (min-width: 768px) {
   .screen-shell {
     padding-inline: 1.5rem;
-    padding-block: 2.5rem;
+    padding-top: 2.5rem;
+    padding-bottom: 2.5rem;
   }
 }
 
 .screen-panel {
   width: 100%;
-  border-radius: 1.5rem;
-  background-color: color-mix(in srgb, var(--color-surface) 80%, transparent);
-  border: 1px solid #2a2a2a;
-  padding: 1.25rem;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
 }
 
 @media (min-width: 768px) {
   .screen-panel {
+    border-radius: 1.5rem;
+    background-color: color-mix(in srgb, var(--color-surface) 80%, transparent);
+    border: 1px solid #2a2a2a;
     padding: 2rem;
   }
 }

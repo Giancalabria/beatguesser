@@ -15,14 +15,14 @@ export default function ShareCard({ mode, pool, result, score, onCopy, copied }:
   const shareText = buildShareText(mode, pool, result, score);
 
   return (
-    <div className="w-full bg-surface rounded-2xl p-4 sm:p-5 border border-neutral-800">
-      <pre className="font-mono text-sm sm:text-base text-neutral-300 whitespace-pre-wrap mb-3">
+    <div className="w-full bg-white/5 rounded-2xl p-4 border border-neutral-800">
+      <pre className="font-mono text-sm text-neutral-300 whitespace-pre-wrap mb-3">
         {shareText}
       </pre>
       <button
         type="button"
         onClick={onCopy}
-        className="w-full py-2.5 sm:py-3 rounded-full text-sm sm:text-base font-semibold transition-colors"
+        className="w-full h-10 rounded-xl text-sm font-semibold transition-colors"
         style={{
           backgroundColor: `${POOL_COLORS[pool]}20`,
           color: POOL_COLORS[pool],
