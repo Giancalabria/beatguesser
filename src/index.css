@@ -10,30 +10,122 @@
   --color-impossible: #BF5AF2;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --max-width-screen-panel: 48rem;
 }
 
 * {
   box-sizing: border-box;
 }
 
-html, body, #root {
+html {
   height: 100%;
-  margin: 0;
+  overflow-x: hidden;
 }
 
 body {
+  min-height: 100%;
+  min-height: 100dvh;
+  margin: 0;
   font-family: var(--font-sans);
   background-color: var(--color-bg);
   color: #ffffff;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
-input, button {
+#root {
+  min-height: 100%;
+  min-height: 100dvh;
+}
+
+input,
+button {
   font-family: inherit;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 3px;
+}
+
+.guess-feedback {
+  animation: feedback-in 180ms ease-out;
+}
+
+@keyframes feedback-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.35rem) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.game-dialog {
+  width: min(28rem, calc(100% - 2rem));
+  margin: auto;
+  border: 1px solid #3a3a3a;
+  border-radius: 1.5rem;
+  padding: 1.5rem;
+  background: #1a1a1a;
+  color: #ffffff;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 65%);
+}
+
+.game-dialog:not([open]) {
+  display: none;
+}
+
+.game-dialog::backdrop {
+  background: rgb(0 0 0 / 72%);
+  backdrop-filter: blur(4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .font-mono {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+}
+
+.screen-shell {
+  width: 100%;
+  max-width: var(--max-width-screen-panel);
+  margin-inline: auto;
+  padding-inline: 1rem;
+  padding-block: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .screen-shell {
+    padding-inline: 1.5rem;
+    padding-block: 2.5rem;
+  }
+}
+
+.screen-panel {
+  width: 100%;
+  border-radius: 1.5rem;
+  background-color: color-mix(in srgb, var(--color-surface) 80%, transparent);
+  border: 1px solid #2a2a2a;
+  padding: 1.25rem;
+}
+
+@media (min-width: 768px) {
+  .screen-panel {
+    padding: 2rem;
+  }
 }

@@ -4,6 +4,12 @@ import type { Pool, Song } from '../types';
 
 const TIMEZONE = 'America/Argentina/Buenos_Aires';
 
+function logDailyDev(...args: unknown[]): void {
+  if (import.meta.env.DEV) {
+    console.warn('[daily]', ...args);
+  }
+}
+
 export function getDateKey(date: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: TIMEZONE,
@@ -36,6 +42,7 @@ interface DailyPickRow {
   songs:
     | {
         id: string;
+        spotify_id: string | null;
         title: string;
         artist: string;
         pool: Pool;
@@ -43,6 +50,7 @@ interface DailyPickRow {
       }
     | {
         id: string;
+        spotify_id: string | null;
         title: string;
         artist: string;
         pool: Pool;
@@ -57,6 +65,7 @@ function songFromPick(row: DailyPickRow): Song | null {
   if (!s) return null;
   return {
     id: s.id,
+    spotifyId: s.spotify_id ?? undefined,
     title: s.title,
     artist: s.artist,
     pool: s.pool,
@@ -71,7 +80,7 @@ export async function resolveDailySong(pool: Pool, dateKey: string = getDateKey(
   if (supabase) {
     const { data, error } = await supabase
       .from('daily_picks')
-      .select('song_id, songs (id, title, artist, pool, preview_url)')
+      .select('song_id, songs (id, spotify_id, title, artist, pool, preview_url)')
       .eq('date', dateKey)
       .eq('pool', pool)
       .maybeSingle();
@@ -79,6 +88,11 @@ export async function resolveDailySong(pool: Pool, dateKey: string = getDateKey(
     if (!error && data) {
       const song = songFromPick(data as DailyPickRow);
       if (song) return song;
+    }
+    if (error) {
+      logDailyDev('Supabase pick unavailable; using deterministic fallback', pool, dateKey, error);
+    } else {
+      logDailyDev('Daily pick missing; using deterministic fallback', pool, dateKey);
     }
   }
 

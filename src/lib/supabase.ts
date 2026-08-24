@@ -6,7 +6,9 @@ export function getSupabase(): SupabaseClient | null {
   if (client) return client;
 
   const url = import.meta.env.VITE_SUPABASE_URL;
-  const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const key =
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    import.meta.env.VITE_SUPABASE_ANON_KEY;
 
   if (!url || !key) {
     return null;
@@ -21,5 +23,8 @@ export function getSupabase(): SupabaseClient | null {
 }
 
 export function isSupabaseConfigured(): boolean {
-  return !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
+  return !!(
+    import.meta.env.VITE_SUPABASE_URL &&
+    (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY)
+  );
 }

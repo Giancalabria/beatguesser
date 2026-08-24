@@ -1,46 +1,151 @@
+export type ClipLoadState = 'idle' | 'loading' | 'ready' | 'error';
+
+export interface ClipError {
+  phase: 'load' | 'play';
+  message: string;
+  code?: number;
+}
+
+export type PlayingChangeListener = (playing: boolean) => void;
+export type ErrorListener = (error: ClipError) => void;
+
+const LOAD_TIMEOUT_MS = 15_000;
+
+function audioErrorMessage(audio: HTMLAudioElement | null): string {
+  const code = audio?.error?.code;
+  // MediaError constants: 1 aborted, 2 network, 3 decode, 4 src not supported
+  switch (code) {
+    case 1:
+      return 'Carga de audio abortada';
+    case 2:
+      return 'Error de red al cargar el audio';
+    case 3:
+      return 'No se pudo decodificar el audio';
+    case 4:
+      return 'Formato de audio no soportado';
+    default:
+      return 'Error al cargar el audio';
+  }
+}
+
 export class AudioClipper {
   private audio: HTMLAudioElement | null = null;
   private stopTimer: ReturnType<typeof setTimeout> | null = null;
+  private loadTimeout: ReturnType<typeof setTimeout> | null = null;
   private _isPlaying = false;
+  private _loadState: ClipLoadState = 'idle';
+  private loadGeneration = 0;
+  private onPlayingChange: PlayingChangeListener | null = null;
+  private onError: ErrorListener | null = null;
+  private boundPlay = () => this.setPlaying(true);
+  private boundPause = () => this.setPlaying(false);
+  private boundEnded = () => this.setPlaying(false);
+  private boundError = () => {
+    this.setPlaying(false);
+    this.emitError({
+      phase: 'play',
+      message: audioErrorMessage(this.audio),
+      code: this.audio?.error?.code,
+    });
+  };
+
+  get loadState(): ClipLoadState {
+    return this._loadState;
+  }
+
+  setPlayingChangeListener(listener: PlayingChangeListener | null): void {
+    this.onPlayingChange = listener;
+  }
+
+  setErrorListener(listener: ErrorListener | null): void {
+    this.onError = listener;
+  }
 
   async load(url: string): Promise<void> {
     this.stop();
+    this.detachAudioListeners();
+    this.clearLoadTimeout();
+
+    const generation = ++this.loadGeneration;
+    this._loadState = 'loading';
     this.audio = new Audio(url);
     this.audio.preload = 'auto';
+    this.attachAudioListeners(this.audio);
 
     await new Promise<void>((resolve, reject) => {
-      if (!this.audio) return reject(new Error('Audio not initialized'));
+      if (!this.audio || generation !== this.loadGeneration) {
+        return reject(new Error('Audio not initialized'));
+      }
 
-      const onReady = () => {
+      const audio = this.audio;
+      let settled = false;
+
+      const finish = (ok: boolean, err?: Error) => {
+        if (settled || generation !== this.loadGeneration) return;
+        settled = true;
         cleanup();
-        resolve();
+        this.clearLoadTimeout();
+        if (ok) {
+          this._loadState = 'ready';
+          resolve();
+        } else {
+          this._loadState = 'error';
+          const error = err ?? new Error(audioErrorMessage(audio));
+          this.emitError({
+            phase: 'load',
+            message: error.message,
+            code: audio.error?.code,
+          });
+          reject(error);
+        }
       };
-      const onError = () => {
-        cleanup();
-        reject(new Error('Failed to load audio'));
-      };
+
+      const onReady = () => finish(true);
+      const onError = () => finish(false, new Error(audioErrorMessage(audio)));
       const cleanup = () => {
-        this.audio?.removeEventListener('canplaythrough', onReady);
-        this.audio?.removeEventListener('error', onError);
+        audio.removeEventListener('canplaythrough', onReady);
+        audio.removeEventListener('canplay', onReady);
+        audio.removeEventListener('loadeddata', onReady);
+        audio.removeEventListener('error', onError);
       };
 
-      this.audio.addEventListener('canplaythrough', onReady, { once: true });
-      this.audio.addEventListener('error', onError, { once: true });
-      this.audio.load();
+      const tryReady = () => {
+        if (audio.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+          finish(true);
+        }
+      };
+
+      audio.addEventListener('canplaythrough', onReady, { once: true });
+      audio.addEventListener('canplay', onReady, { once: true });
+      audio.addEventListener('loadeddata', onReady, { once: true });
+      audio.addEventListener('error', onError, { once: true });
+
+      this.loadTimeout = setTimeout(() => {
+        finish(false, new Error('Timeout al cargar el audio'));
+      }, LOAD_TIMEOUT_MS);
+
+      audio.load();
+      tryReady();
     });
   }
 
-  play(durationSec: number): void {
-    if (!this.audio) return;
+  async play(durationSec: number): Promise<void> {
+    if (!this.audio) {
+      throw new Error('Audio no cargado');
+    }
 
-    this.stop();
-
+    this.clearStopTimer();
     this.audio.currentTime = 0;
-    void this.audio.play().then(() => {
-      this._isPlaying = true;
-    }).catch(() => {
-      this._isPlaying = false;
-    });
+
+    try {
+      await this.audio.play();
+      this.setPlaying(true);
+    } catch (err) {
+      this.setPlaying(false);
+      const message = err instanceof Error ? err.message : 'No se pudo reproducir el audio';
+      this.emitError({ phase: 'play', message });
+      throw err instanceof Error ? err : new Error(message);
+    }
 
     this.stopTimer = setTimeout(() => {
       this.stop();
@@ -48,23 +153,73 @@ export class AudioClipper {
   }
 
   stop(): void {
-    if (this.stopTimer) {
-      clearTimeout(this.stopTimer);
-      this.stopTimer = null;
-    }
+    this.clearStopTimer();
     if (this.audio) {
       this.audio.pause();
-      this.audio.currentTime = 0;
+      try {
+        this.audio.currentTime = 0;
+      } catch {
+        // ignore seek errors on unloaded media
+      }
     }
-    this._isPlaying = false;
+    this.setPlaying(false);
   }
 
   isPlaying(): boolean {
     return this._isPlaying && !!this.audio && !this.audio.paused;
   }
 
+  getCurrentTime(): number {
+    return this.audio?.currentTime ?? 0;
+  }
+
   destroy(): void {
+    this.loadGeneration += 1;
+    this.clearLoadTimeout();
     this.stop();
+    this.detachAudioListeners();
     this.audio = null;
+    this._loadState = 'idle';
+    this.onPlayingChange = null;
+    this.onError = null;
+  }
+
+  private attachAudioListeners(audio: HTMLAudioElement): void {
+    audio.addEventListener('play', this.boundPlay);
+    audio.addEventListener('pause', this.boundPause);
+    audio.addEventListener('ended', this.boundEnded);
+    audio.addEventListener('error', this.boundError);
+  }
+
+  private detachAudioListeners(): void {
+    if (!this.audio) return;
+    this.audio.removeEventListener('play', this.boundPlay);
+    this.audio.removeEventListener('pause', this.boundPause);
+    this.audio.removeEventListener('ended', this.boundEnded);
+    this.audio.removeEventListener('error', this.boundError);
+  }
+
+  private clearStopTimer(): void {
+    if (this.stopTimer) {
+      clearTimeout(this.stopTimer);
+      this.stopTimer = null;
+    }
+  }
+
+  private clearLoadTimeout(): void {
+    if (this.loadTimeout) {
+      clearTimeout(this.loadTimeout);
+      this.loadTimeout = null;
+    }
+  }
+
+  private setPlaying(playing: boolean): void {
+    if (this._isPlaying === playing) return;
+    this._isPlaying = playing;
+    this.onPlayingChange?.(playing);
+  }
+
+  private emitError(error: ClipError): void {
+    this.onError?.(error);
   }
 }

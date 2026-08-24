@@ -3,7 +3,7 @@ import type { Song } from '../types';
 
 const STOP_WORDS = new Set(['the', 'el', 'la', 'los', 'las', 'a', 'an']);
 
-function normalize(text: string): string {
+export function normalize(text: string): string {
   return text
     .toLowerCase()
     .normalize('NFD')
@@ -48,11 +48,10 @@ function similarity(query: string, song: Song): number {
   return coverage + exactBonus;
 }
 
-export function searchSongs(query: string, limit = 8): Song[] {
+export function searchSongs(query: string, songs: Song[] = getAllSongs(), limit = 8): Song[] {
   const trimmed = query.trim();
   if (trimmed.length === 0) return [];
 
-  const songs = getAllSongs();
   return songs
     .map((song) => ({ song, score: similarity(trimmed, song) }))
     .filter(({ score }) => score >= 0.5)
@@ -61,8 +60,8 @@ export function searchSongs(query: string, limit = 8): Song[] {
     .map(({ song }) => song);
 }
 
-export function matchSong(query: string): Song | null {
-  const results = searchSongs(query, 1);
+export function matchSong(query: string, songs: Song[] = getAllSongs()): Song | null {
+  const results = searchSongs(query, songs, 1);
   if (results.length === 0) return null;
 
   const trimmed = query.trim();
@@ -71,9 +70,45 @@ export function matchSong(query: string): Song | null {
   return score >= 0.6 ? top : null;
 }
 
-export function isCorrectGuess(query: string, target: Song): boolean {
-  const match = matchSong(query);
-  return match?.id === target.id;
+function titleWithoutVersion(title: string): string {
+  return title
+    .replace(
+      /\s*[\[(](?:feat(?:uring)?|ft\.?|with|remaster(?:ed)?|radio edit|live|version|edit|mix)[^\])]*[\])]\s*$/i,
+      '',
+    )
+    .replace(
+      /\s*-\s*(?:remaster(?:ed)?|radio edit|live|album version|single version|edit|mix)\b.*$/i,
+      '',
+    )
+    .trim();
 }
 
-export { normalize, similarity };
+export function isCorrectGuess(
+  query: string,
+  target: Song,
+  selectedSong?: Song,
+): boolean {
+  if (selectedSong) {
+    if (selectedSong.spotifyId && target.spotifyId) {
+      return selectedSong.spotifyId === target.spotifyId;
+    }
+    if (selectedSong.id === target.id) return true;
+    return false;
+  }
+
+  const normalizedQuery = normalize(query);
+  if (!normalizedQuery) return false;
+
+  const baseTitle = titleWithoutVersion(target.title);
+  const accepted = new Set([
+    normalize(target.title),
+    normalize(`${target.title} ${target.artist}`),
+    normalize(`${target.artist} ${target.title}`),
+    normalize(baseTitle),
+    normalize(`${baseTitle} ${target.artist}`),
+  ]);
+
+  return accepted.has(normalizedQuery);
+}
+
+export { similarity };

@@ -4,6 +4,7 @@ export type GameMode = 'daily' | 'infinite';
 
 export interface Song {
   id: string;
+  spotifyId?: string;
   title: string;
   artist: string;
   pool: Pool;
@@ -14,6 +15,7 @@ export interface Song {
 export interface DailyResult {
   pool: Pool;
   won: boolean;
+  attempts?: number;
   segmentsUsed: number;
   maxSegment: number;
   songId: string;
@@ -28,7 +30,7 @@ export interface DailyState {
 
 export const POOLS: Pool[] = ['easy', 'medium', 'hard', 'expert', 'impossible'];
 
-export const CLIP_MARKS = [0.1, 0.5, 1, 3, 7, 15] as const;
+export const CLIP_MARKS = [0.5, 1, 3, 7, 15] as const;
 
 export const POOL_COLORS: Record<Pool, string> = {
   easy: '#C8FF00',

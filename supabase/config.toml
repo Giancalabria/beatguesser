@@ -1,0 +1,5 @@
+[functions.pick-daily]
+verify_jwt = false
+
+[functions.search-songs]
+verify_jwt = false
