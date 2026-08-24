@@ -8,7 +8,7 @@ vi.mock('./supabase', () => ({
   }),
 }));
 
-import { getBackupSongs, resolveSongPreview, searchSpotifyCatalog } from './catalog';
+import { getBackupSongs, getSongsByPool, resolveSongPreview, searchSpotifyCatalog } from './catalog';
 
 describe('searchSpotifyCatalog', () => {
   beforeEach(() => {
@@ -115,5 +115,20 @@ describe('searchSpotifyCatalog', () => {
     const backups = getBackupSongs(primary);
     expect(backups).toHaveLength(4);
     expect(backups.some((song) => song.id === primary.id)).toBe(false);
+  });
+
+  it('uses globally recognizable hits in every pool, including expert and impossible', () => {
+    expect(getSongsByPool('easy').map((song) => song.title)).toEqual(
+      expect.arrayContaining(['Blinding Lights', 'Shape of You', 'Cruel Summer']),
+    );
+    expect(getSongsByPool('medium').map((song) => song.title)).toEqual(
+      expect.arrayContaining(['Despacito', 'Levitating']),
+    );
+    expect(getSongsByPool('expert').map((song) => song.title)).toEqual(
+      expect.arrayContaining(['Viva La Vida', 'Poker Face', 'Seven Nation Army']),
+    );
+    expect(getSongsByPool('impossible').map((song) => song.title)).toEqual(
+      expect.arrayContaining(['The Scientist', 'Take Me to Church', 'Pumped Up Kicks']),
+    );
   });
 });

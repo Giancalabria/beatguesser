@@ -2,40 +2,40 @@ import type { Song, Pool } from '../types';
 import { getSupabase } from './supabase';
 
 const SEED_SONGS: Omit<Song, 'previewUrl'>[] = [
-  // Easy — mainstream hits
+  // Easy — current worldwide chart smashes
   { id: 'e1', title: 'Blinding Lights', artist: 'The Weeknd', pool: 'easy', itunesSearchTerm: 'Blinding Lights The Weeknd' },
-  { id: 'e2', title: 'As It Was', artist: 'Harry Styles', pool: 'easy', itunesSearchTerm: 'As It Was Harry Styles' },
-  { id: 'e3', title: 'Cruel Summer', artist: 'Taylor Swift', pool: 'easy', itunesSearchTerm: 'Cruel Summer Taylor Swift' },
-  { id: 'e4', title: 'BZRP Music Sessions #53', artist: 'Shakira', pool: 'easy', itunesSearchTerm: 'Shakira BZRP Music Sessions' },
-  { id: 'e5', title: 'BZRP Music Sessions #52', artist: 'Quevedo', pool: 'easy', itunesSearchTerm: 'Quevedo BZRP Music Sessions' },
+  { id: 'e2', title: 'Shape of You', artist: 'Ed Sheeran', pool: 'easy', itunesSearchTerm: 'Shape of You Ed Sheeran' },
+  { id: 'e3', title: 'As It Was', artist: 'Harry Styles', pool: 'easy', itunesSearchTerm: 'As It Was Harry Styles' },
+  { id: 'e4', title: 'Flowers', artist: 'Miley Cyrus', pool: 'easy', itunesSearchTerm: 'Flowers Miley Cyrus' },
+  { id: 'e5', title: 'Cruel Summer', artist: 'Taylor Swift', pool: 'easy', itunesSearchTerm: 'Cruel Summer Taylor Swift' },
 
-  // Medium — well known but not omnipresent
+  // Medium — instantly recognizable global pop
   { id: 'm1', title: 'Espresso', artist: 'Sabrina Carpenter', pool: 'medium', itunesSearchTerm: 'Espresso Sabrina Carpenter' },
-  { id: 'm2', title: 'Flowers', artist: 'Miley Cyrus', pool: 'medium', itunesSearchTerm: 'Flowers Miley Cyrus' },
-  { id: 'm3', title: 'Die With A Smile', artist: 'Lady Gaga', pool: 'medium', itunesSearchTerm: 'Die With A Smile Lady Gaga Bruno Mars' },
-  { id: 'm4', title: 'La Bachata', artist: 'Manuel Turizo', pool: 'medium', itunesSearchTerm: 'La Bachata Manuel Turizo' },
-  { id: 'm5', title: 'Monaco', artist: 'Bad Bunny', pool: 'medium', itunesSearchTerm: 'Monaco Bad Bunny' },
+  { id: 'm2', title: 'Die With A Smile', artist: 'Lady Gaga', pool: 'medium', itunesSearchTerm: 'Die With A Smile Lady Gaga Bruno Mars' },
+  { id: 'm3', title: 'Levitating', artist: 'Dua Lipa', pool: 'medium', itunesSearchTerm: 'Levitating Dua Lipa' },
+  { id: 'm4', title: 'Stay', artist: 'The Kid LAROI', pool: 'medium', itunesSearchTerm: 'Stay The Kid LAROI Justin Bieber' },
+  { id: 'm5', title: 'Despacito', artist: 'Luis Fonsi', pool: 'medium', itunesSearchTerm: 'Despacito Luis Fonsi Daddy Yankee' },
 
-  // Hard — deeper cuts / older
-  { id: 'h1', title: 'Redbone', artist: 'Childish Gambino', pool: 'hard', itunesSearchTerm: 'Redbone Childish Gambino' },
-  { id: 'h2', title: 'Take On Me', artist: 'a-ha', pool: 'hard', itunesSearchTerm: 'Take On Me a-ha' },
-  { id: 'h3', title: 'Dreams', artist: 'Fleetwood Mac', pool: 'hard', itunesSearchTerm: 'Dreams Fleetwood Mac' },
-  { id: 'h4', title: 'Riptide', artist: 'Vance Joy', pool: 'hard', itunesSearchTerm: 'Riptide Vance Joy' },
-  { id: 'h5', title: 'Pompeii', artist: 'Bastille', pool: 'hard', itunesSearchTerm: 'Pompeii Bastille' },
+  // Hard — famous hits, a bit less omnipresent this week
+  { id: 'h1', title: 'Take On Me', artist: 'a-ha', pool: 'hard', itunesSearchTerm: 'Take On Me a-ha' },
+  { id: 'h2', title: 'Uptown Funk', artist: 'Mark Ronson', pool: 'hard', itunesSearchTerm: 'Uptown Funk Mark Ronson Bruno Mars' },
+  { id: 'h3', title: 'Mr. Brightside', artist: 'The Killers', pool: 'hard', itunesSearchTerm: 'Mr Brightside The Killers' },
+  { id: 'h4', title: 'Somebody That I Used to Know', artist: 'Gotye', pool: 'hard', itunesSearchTerm: 'Somebody That I Used to Know Gotye' },
+  { id: 'h5', title: "Don't Stop Believin'", artist: 'Journey', pool: 'hard', itunesSearchTerm: "Don't Stop Believin Journey" },
 
-  // Expert — less radio, still on iTunes
-  { id: 'x1', title: 'Midnight City', artist: 'M83', pool: 'expert', itunesSearchTerm: 'Midnight City M83' },
-  { id: 'x2', title: 'Electric Feel', artist: 'MGMT', pool: 'expert', itunesSearchTerm: 'Electric Feel MGMT' },
-  { id: 'x3', title: 'Dog Days Are Over', artist: 'Florence + The Machine', pool: 'expert', itunesSearchTerm: 'Dog Days Are Over Florence' },
-  { id: 'x4', title: '1901', artist: 'Phoenix', pool: 'expert', itunesSearchTerm: '1901 Phoenix' },
-  { id: 'x5', title: 'Kids', artist: 'MGMT', pool: 'expert', itunesSearchTerm: 'Kids MGMT' },
+  // Expert — huge worldwide radio hits, just not this week's #1
+  { id: 'x1', title: 'Viva La Vida', artist: 'Coldplay', pool: 'expert', itunesSearchTerm: 'Viva La Vida Coldplay' },
+  { id: 'x2', title: 'Rolling in the Deep', artist: 'Adele', pool: 'expert', itunesSearchTerm: 'Rolling in the Deep Adele' },
+  { id: 'x3', title: 'Seven Nation Army', artist: 'The White Stripes', pool: 'expert', itunesSearchTerm: 'Seven Nation Army White Stripes' },
+  { id: 'x4', title: 'Poker Face', artist: 'Lady Gaga', pool: 'expert', itunesSearchTerm: 'Poker Face Lady Gaga' },
+  { id: 'x5', title: 'Radioactive', artist: 'Imagine Dragons', pool: 'expert', itunesSearchTerm: 'Radioactive Imagine Dragons' },
 
-  // Impossible — obscure / deep catalog
-  { id: 'i1', title: 'Heartbeats', artist: 'José González', pool: 'impossible', itunesSearchTerm: 'Heartbeats Jose Gonzalez' },
-  { id: 'i2', title: 'Holocene', artist: 'Bon Iver', pool: 'impossible', itunesSearchTerm: 'Holocene Bon Iver' },
-  { id: 'i3', title: 'Breathe Me', artist: 'Sia', pool: 'impossible', itunesSearchTerm: 'Breathe Me Sia' },
-  { id: 'i4', title: 'Such Great Heights', artist: 'The Postal Service', pool: 'impossible', itunesSearchTerm: 'Such Great Heights Postal Service' },
-  { id: 'i5', title: 'Young Folks', artist: 'Peter Bjorn and John', pool: 'impossible', itunesSearchTerm: 'Young Folks Peter Bjorn and John' },
+  // Impossible — still household-name hits; harder clip, not obscure catalog
+  { id: 'i1', title: 'The Scientist', artist: 'Coldplay', pool: 'impossible', itunesSearchTerm: 'The Scientist Coldplay' },
+  { id: 'i2', title: 'Chasing Cars', artist: 'Snow Patrol', pool: 'impossible', itunesSearchTerm: 'Chasing Cars Snow Patrol' },
+  { id: 'i3', title: 'Use Somebody', artist: 'Kings of Leon', pool: 'impossible', itunesSearchTerm: 'Use Somebody Kings of Leon' },
+  { id: 'i4', title: 'Take Me to Church', artist: 'Hozier', pool: 'impossible', itunesSearchTerm: 'Take Me to Church Hozier' },
+  { id: 'i5', title: 'Pumped Up Kicks', artist: 'Foster the People', pool: 'impossible', itunesSearchTerm: 'Pumped Up Kicks Foster the People' },
 ];
 
 const previewCache = new Map<string, string>();
