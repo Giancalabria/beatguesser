@@ -23,7 +23,9 @@ function similarity(query: string, song: Song): number {
   const qTokens = tokenize(query);
   if (qTokens.length === 0) return 0;
 
-  const haystack = normalize(`${song.title} ${song.artist}`);
+  const title = normalize(song.title);
+  const artist = normalize(song.artist);
+  const haystack = `${title} ${artist}`.trim();
   const songTokens = tokenize(`${song.title} ${song.artist}`);
 
   let matches = 0;
@@ -42,10 +44,18 @@ function similarity(query: string, song: Song): number {
 
   const coverage = matches / qTokens.length;
   const fullNorm = normalize(query);
-  const songNorm = normalize(`${song.title} ${song.artist}`);
-  const exactBonus = songNorm === fullNorm ? 1 : songNorm.includes(fullNorm) ? 0.5 : 0;
+  const titleBonus =
+    title === fullNorm
+      ? 2
+      : title.startsWith(`${fullNorm} `)
+        ? 1.25
+        : title.includes(fullNorm)
+          ? 0.75
+          : 0;
+  const labelBonus = haystack === fullNorm ? 1 : haystack.startsWith(fullNorm) ? 0.5 : 0;
+  const artistBonus = artist === fullNorm ? 0.5 : 0;
 
-  return coverage + exactBonus;
+  return coverage + titleBonus + labelBonus + artistBonus;
 }
 
 export function searchSongs(query: string, songs: Song[] = getAllSongs(), limit = 8): Song[] {
@@ -90,10 +100,10 @@ export function isCorrectGuess(
 ): boolean {
   if (selectedSong) {
     if (selectedSong.spotifyId && target.spotifyId) {
-      return selectedSong.spotifyId === target.spotifyId;
+      if (selectedSong.spotifyId === target.spotifyId) return true;
     }
     if (selectedSong.id === target.id) return true;
-    return false;
+    return equivalentSong(selectedSong, target);
   }
 
   const normalizedQuery = normalize(query);
@@ -109,6 +119,26 @@ export function isCorrectGuess(
   ]);
 
   return accepted.has(normalizedQuery);
+}
+
+function primaryArtist(artist: string): string {
+  return normalize(artist.split(/,|&|\bfeat(?:uring)?\.?\b|\bft\.?\b/i)[0]);
+}
+
+function equivalentSong(first: Song, second: Song): boolean {
+  const firstTitle = normalize(titleWithoutVersion(first.title));
+  const secondTitle = normalize(titleWithoutVersion(second.title));
+  if (!firstTitle || firstTitle !== secondTitle) return false;
+
+  const firstArtist = primaryArtist(first.artist);
+  const secondArtist = primaryArtist(second.artist);
+  return Boolean(
+    firstArtist &&
+      secondArtist &&
+      (firstArtist === secondArtist ||
+        firstArtist.includes(secondArtist) ||
+        secondArtist.includes(firstArtist)),
+  );
 }
 
 export { similarity };

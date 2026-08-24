@@ -36,10 +36,26 @@ describe('isCorrectGuess', () => {
       id: 'spotify:spotify-track-123',
     };
     expect(isCorrectGuess('anything', spotifySong, suggestion)).toBe(true);
+  });
+
+  it('accepts equivalent releases with different Spotify ids', () => {
+    const suggestion = {
+      ...spotifySong,
+      id: 'spotify:different-track',
+      spotifyId: 'different-track',
+    };
+    expect(
+      isCorrectGuess('the input text is ignored', spotifySong, suggestion),
+    ).toBe(true);
+  });
+
+  it('rejects a same-title selection from a different artist', () => {
     expect(
       isCorrectGuess(spotifySong.title, spotifySong, {
-        ...suggestion,
-        spotifyId: 'different-track',
+        ...spotifySong,
+        id: 'spotify:different-artist-track',
+        spotifyId: 'different-artist-track',
+        artist: 'Another Artist',
       }),
     ).toBe(false);
   });
@@ -53,10 +69,35 @@ describe('isCorrectGuess', () => {
     expect(isCorrectGuess('Canción', spotifySong)).toBe(false);
     expect(isCorrectGuess('Otra canción', spotifySong)).toBe(false);
   });
+
+  it('does not accept a close typo as a typed answer', () => {
+    const blindingLights = {
+      ...spotifySong,
+      id: 'blinding-lights',
+      title: 'Blinding Lights',
+      artist: 'The Weeknd',
+    };
+
+    expect(isCorrectGuess('Binding Lights', blindingLights)).toBe(false);
+  });
 });
 
 describe('searchSongs', () => {
   it('searches the supplied dynamic catalog', () => {
     expect(searchSongs('Jose Gonzalez', [spotifySong], 6)).toEqual([spotifySong]);
   });
+
+  it('ranks an exact title ahead of partial title matches', () => {
+    const partial = {
+      ...spotifySong,
+      id: 'partial',
+      title: 'The Canción del Año Remix Collection',
+    };
+
+    expect(searchSongs('Canción del Año', [partial, spotifySong], 6)).toEqual([
+      spotifySong,
+      partial,
+    ]);
+  });
+
 });

@@ -374,11 +374,11 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
       void searchSpotifyCatalog(query, pool, 10).then((spotifyResults) => {
         if (cancelled) return;
         const byLabel = new Map<string, Song>();
-        for (const song of [...spotifyResults, ...localResults]) {
+        for (const song of [...localResults, ...spotifyResults]) {
           const key = `${song.title}::${song.artist}`.toLocaleLowerCase();
           if (!byLabel.has(key)) byLabel.set(key, song);
         }
-        setSuggestions(searchSongs(query, [...byLabel.values()], 10));
+        setSuggestions([...byLabel.values()].slice(0, 10));
       });
     }, 300);
 
@@ -504,6 +504,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
 
     const text = (guessText ?? query).trim();
     if (!text) return;
+    setQuery('');
     const nextAttempts = attempts + 1;
     setAttempts(nextAttempts);
 
@@ -512,7 +513,11 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     setIsPlaying(false);
     setSuggestions([]);
 
-    if (isCorrectGuess(text, currentSong, selectedSong)) {
+    const correct = selectedSong
+      ? isCorrectGuess('', currentSong, selectedSong)
+      : isCorrectGuess(text, currentSong);
+
+    if (correct) {
       setGuessFeedback({ kind: 'correct', message: t('feedback.correct') });
       if (mode === 'infinite') {
         const nextUsed = new Set(usedIds);
