@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Song } from '../types';
 
 interface SongComboboxProps {
@@ -18,6 +19,7 @@ export default function SongCombobox({
   onChange,
   onSelect,
 }: SongComboboxProps) {
+  const { t } = useTranslation();
   const listboxId = useId();
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -36,7 +38,7 @@ export default function SongCombobox({
   return (
     <div className="relative flex-1 min-w-0">
       <label htmlFor={`${listboxId}-input`} className="sr-only">
-        Nombre de la canción
+        {t('combobox.label')}
       </label>
       <input
         id={`${listboxId}-input`}
@@ -66,7 +68,7 @@ export default function SongCombobox({
             setActiveIndex(-1);
           }
         }}
-        placeholder="¿Qué canción es?"
+        placeholder={t('combobox.placeholder')}
         className={`w-full h-11 bg-white/5 border rounded-xl px-4 text-sm text-white placeholder:text-neutral-500 focus:outline-none transition-colors ${
           invalid
             ? 'border-expert focus:border-expert'

@@ -1,6 +1,8 @@
+import { useTranslation } from 'react-i18next';
 import type { GameMode, Pool, DailyResult } from '../types';
-import { POOL_LABELS, POOL_EMOJI, POOL_COLORS, CLIP_MARKS } from '../types';
+import { POOL_I18N_KEYS, POOL_EMOJI, POOL_COLORS, CLIP_MARKS } from '../types';
 import { getDateKey } from '../lib/daily';
+import i18n from '../i18n';
 
 interface ShareCardProps {
   mode: GameMode;
@@ -12,6 +14,7 @@ interface ShareCardProps {
 }
 
 export default function ShareCard({ mode, pool, result, score, onCopy, copied }: ShareCardProps) {
+  const { t } = useTranslation();
   const shareText = buildShareText(mode, pool, result, score);
 
   return (
@@ -29,7 +32,7 @@ export default function ShareCard({ mode, pool, result, score, onCopy, copied }:
           border: `1px solid ${POOL_COLORS[pool]}40`,
         }}
       >
-        {copied ? '¡Copiado!' : 'Copiar resultado'}
+        {copied ? t('share.copied') : t('share.copyResult')}
       </button>
     </div>
   );
@@ -43,9 +46,10 @@ export function buildShareText(mode: GameMode, pool: Pool, result?: DailyResult,
     const outcome = result.won ? `✅ ${maxMark}s` : '❌';
     const attempts =
       result.won && result.attempts
-        ? ` · ${result.attempts} ${result.attempts === 1 ? 'intento' : 'intentos'}`
+        ? ` · ${i18n.t('share.attempt', { count: result.attempts })}`
         : '';
-    return `BeatGuesser #${dateKey}\n${POOL_LABELS[pool]} ${POOL_EMOJI[pool]} ${outcome}${attempts}`;
+    return `BeatGuesser #${dateKey}\n${i18n.t(POOL_I18N_KEYS[pool])} ${POOL_EMOJI[pool]} ${outcome}${attempts}`;
   }
-  return `BeatGuesser Infinito\n${POOL_LABELS[pool]} ${POOL_EMOJI[pool]} — ${score ?? 0} canciones`;
+  const songCount = score ?? 0;
+  return `${i18n.t('share.infiniteTitle')}\n${i18n.t(POOL_I18N_KEYS[pool])} ${POOL_EMOJI[pool]} — ${i18n.t('share.songs', { count: songCount })}`;
 }

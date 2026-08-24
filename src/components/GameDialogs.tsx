@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { DailyResult, Song } from '../types';
 
 interface SurrenderDialogProps {
@@ -8,6 +9,7 @@ interface SurrenderDialogProps {
 }
 
 export function SurrenderDialog({ open, onCancel, onConfirm }: SurrenderDialogProps) {
+  const { t } = useTranslation();
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -31,10 +33,10 @@ export function SurrenderDialog({ open, onCancel, onConfirm }: SurrenderDialogPr
       <div className="space-y-5">
         <div>
           <h2 id="surrender-title" className="text-xl font-bold text-white">
-            ¿Rendirse en esta diaria?
+            {t('dialogs.surrenderTitle')}
           </h2>
           <p className="mt-2 text-sm text-neutral-400">
-            Se revelará la canción y esta dificultad quedará marcada como fallada hoy.
+            {t('dialogs.surrenderDescription')}
           </p>
         </div>
         <div className="flex flex-col-reverse sm:flex-row gap-2">
@@ -43,14 +45,14 @@ export function SurrenderDialog({ open, onCancel, onConfirm }: SurrenderDialogPr
             onClick={onCancel}
             className="flex-1 h-11 rounded-xl border border-neutral-600 px-4 text-sm text-neutral-200"
           >
-            Seguir intentando
+            {t('dialogs.keepTrying')}
           </button>
           <button
             type="button"
             onClick={onConfirm}
             className="flex-1 h-11 rounded-xl bg-expert px-4 text-sm font-semibold text-white"
           >
-            Rendirme
+            {t('dialogs.surrenderConfirm')}
           </button>
         </div>
       </div>
@@ -71,6 +73,7 @@ export function DailyResultDialog({
   result,
   onClose,
 }: DailyResultDialogProps) {
+  const { t } = useTranslation();
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -107,7 +110,7 @@ export function DailyResultDialog({
             id="daily-result-title"
             className={`text-2xl font-bold ${won ? 'text-easy' : 'text-expert'}`}
           >
-            {won ? '¡Canción acertada!' : 'Canción fallada'}
+            {won ? t('dialogs.songWon') : t('dialogs.songLost')}
           </h2>
           <p className="mt-3 text-lg font-semibold text-white">
             {song?.title ?? result?.songTitle}
@@ -115,7 +118,7 @@ export function DailyResultDialog({
           <p className="text-neutral-400">{song?.artist ?? result?.songArtist}</p>
           {won && result?.attempts && (
             <p className="mt-2 text-sm text-neutral-500">
-              {result.attempts} {result.attempts === 1 ? 'intento' : 'intentos'}
+              {t('share.attempt', { count: result.attempts })}
             </p>
           )}
         </div>
@@ -124,7 +127,7 @@ export function DailyResultDialog({
           onClick={onClose}
           className="w-full h-11 rounded-xl bg-white px-4 text-sm font-semibold text-bg"
         >
-          Ver resultado
+          {t('dialogs.viewResult')}
         </button>
       </div>
     </dialog>

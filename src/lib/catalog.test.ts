@@ -8,7 +8,7 @@ vi.mock('./supabase', () => ({
   }),
 }));
 
-import { resolveSongPreview, searchSpotifyCatalog } from './catalog';
+import { getBackupSongs, resolveSongPreview, searchSpotifyCatalog } from './catalog';
 
 describe('searchSpotifyCatalog', () => {
   beforeEach(() => {
@@ -83,5 +83,37 @@ describe('searchSpotifyCatalog', () => {
     expect(invoke).toHaveBeenCalledWith('resolve-preview', {
       body: { songId: '123e4567-e89b-42d3-a456-426614174000' },
     });
+  });
+
+  it('provides deterministic backup songs from the same pool', () => {
+    const primary = {
+      id: 'remote-song',
+      title: 'Remote Song',
+      artist: 'Remote Artist',
+      pool: 'hard' as const,
+      itunesSearchTerm: 'Remote Song Remote Artist',
+    };
+
+    const first = getBackupSongs(primary);
+    const second = getBackupSongs(primary);
+
+    expect(first).toEqual(second);
+    expect(first).toHaveLength(5);
+    expect(first.every((song) => song.pool === primary.pool)).toBe(true);
+    expect(first.some((song) => song.id === primary.id)).toBe(false);
+  });
+
+  it('never repeats a local primary as its own backup', () => {
+    const primary = getBackupSongs({
+      id: 'remote-song',
+      title: 'Remote Song',
+      artist: 'Remote Artist',
+      pool: 'easy',
+      itunesSearchTerm: 'Remote Song Remote Artist',
+    })[0];
+
+    const backups = getBackupSongs(primary);
+    expect(backups).toHaveLength(4);
+    expect(backups.some((song) => song.id === primary.id)).toBe(false);
   });
 });

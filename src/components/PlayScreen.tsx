@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { DailyResult, DailyState, GameMode, Pool, Song } from '../types';
 import {
   CLIP_MARKS,
   INFINITE_LIVES,
   POOLS,
   POOL_COLORS,
-  POOL_LABELS,
+  POOL_I18N_KEYS,
 } from '../types';
 import { AudioClipper } from '../lib/clip';
 import {
+  getBackupSongs,
   getSearchCatalog,
-  resolveSongPreview,
+  resolveSongPreviewUrls,
   searchSpotifyCatalog,
 } from '../lib/catalog';
 import { getDateKey, resolveDailySong } from '../lib/daily';
@@ -25,8 +27,8 @@ import {
   saveInfiniteHighScore,
 } from '../lib/storage';
 import ShareCard, { buildShareText } from './ShareCard';
-import GuessFeedback from './GuessFeedback';
 import { DailyResultDialog, SurrenderDialog } from './GameDialogs';
+import LanguageSwitcher from './LanguageSwitcher';
 import SongCombobox from './SongCombobox';
 
 interface PlayScreenProps {
@@ -87,6 +89,7 @@ function logAudioDev(...args: unknown[]): void {
 }
 
 export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
+  const { t } = useTranslation();
   const [pool, setPool] = useState<Pool>('easy');
   const [dailyState, setDailyState] = useState<DailyState>(() => loadDailyState(getDateKey()));
   const [segmentIndex, setSegmentIndex] = useState(0);
@@ -94,7 +97,6 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [loading, setLoading] = useState(false);
   const [audioReady, setAudioReady] = useState(false);
-  const [audioError, setAudioError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackProgress, setPlaybackProgress] = useState(0);
   const [query, setQuery] = useState('');
@@ -188,38 +190,47 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     const loadId = ++loadIdRef.current;
     setLoading(true);
     setAudioReady(false);
-    setAudioError(null);
+    setCurrentSong(null);
     setGuessFeedback(null);
     clipperRef.current.stop();
 
     try {
-      const resolved = await resolveSongPreview(song);
-      if (loadId !== loadIdRef.current) return;
-
-      setCurrentSong(resolved);
-
-      if (resolved.previewUrl) {
+      const songsToTry = [song, ...getBackupSongs(song)];
+      for (const [songIndex, candidateSong] of songsToTry.entries()) {
+        if (loadId !== loadIdRef.current) return;
+        let previewUrls: string[] = [];
         try {
-          await clipperRef.current.load(resolved.previewUrl);
-          if (loadId !== loadIdRef.current) return;
-          setAudioReady(true);
-          setAudioError(null);
-          logAudioDev('ready', resolved.id);
-        } catch (err) {
-          if (loadId !== loadIdRef.current) return;
-          setAudioReady(false);
-          setAudioError('No se pudo cargar el preview. Probá otra dificultad o recargá.');
-          logAudioDev('load failed', resolved.id, err);
+          previewUrls = await resolveSongPreviewUrls(candidateSong);
+        } catch (error) {
+          logAudioDev('preview resolve failed', candidateSong.id, error);
         }
-      } else {
-        setAudioReady(false);
-        setAudioError('Preview no disponible para esta canción.');
-        logAudioDev('no preview url', resolved.id);
+
+        for (const previewUrl of previewUrls) {
+          if (loadId !== loadIdRef.current) return;
+          try {
+            await clipperRef.current.load(previewUrl);
+            if (loadId !== loadIdRef.current) return;
+            setCurrentSong({ ...candidateSong, previewUrl });
+            setAudioReady(true);
+            logAudioDev(
+              songIndex === 0 ? 'ready' : 'backup ready',
+              candidateSong.id,
+              previewUrl,
+            );
+            return;
+          } catch (error) {
+            logAudioDev('preview source failed', candidateSong.id, previewUrl, error);
+          }
+        }
       }
+
+      if (loadId !== loadIdRef.current) return;
+      setCurrentSong(song);
+      setAudioReady(false);
+      logAudioDev('all preview sources and backup songs failed', song.id);
     } catch (err) {
       if (loadId !== loadIdRef.current) return;
       setAudioReady(false);
-      setAudioError('Error al preparar la canción.');
       logAudioDev('resolve failed', err);
     } finally {
       if (loadId === loadIdRef.current) {
@@ -232,7 +243,6 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     async (p: Pool) => {
       const requestId = ++songRequestRef.current;
       setLoading(true);
-      setAudioError(null);
       try {
         const song = await resolveDailySong(p, getDateKey());
         if (requestId !== songRequestRef.current) return;
@@ -247,7 +257,6 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
         if (requestId !== songRequestRef.current) return;
         setLoading(false);
         setAudioReady(false);
-        setAudioError('No se pudo cargar la canción diaria. Probá de nuevo.');
         logAudioDev('daily resolve failed', error);
       }
     },
@@ -283,7 +292,6 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     clipper.setErrorListener((error) => {
       logAudioDev('clipper error', error);
       if (error.phase === 'play') {
-        setAudioError('No se pudo reproducir. Revisá el volumen o probá de nuevo.');
         setIsPlaying(false);
       }
     });
@@ -388,7 +396,6 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
       setIsPlaying(false);
       stopProgressTracking();
     } else {
-      setAudioError(null);
       void clipperRef.current
         .play(currentDuration)
         .then(() => {
@@ -397,20 +404,9 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
         })
         .catch((err) => {
           setIsPlaying(false);
-          setAudioError('No se pudo reproducir. Revisá el volumen o probá de nuevo.');
           logAudioDev('play rejected', err);
+          if (currentSong) void loadSong(currentSong);
         });
-    }
-  };
-
-  const handleRetryAudio = () => {
-    setAudioError(null);
-    if (currentSong) {
-      void loadSong(currentSong);
-    } else if (mode === 'daily') {
-      void initDailySong(pool);
-    } else {
-      void initInfiniteSong(pool, usedIds);
     }
   };
 
@@ -517,7 +513,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     setSuggestions([]);
 
     if (isCorrectGuess(text, currentSong, selectedSong)) {
-      setGuessFeedback({ kind: 'correct', message: '¡Correcto!' });
+      setGuessFeedback({ kind: 'correct', message: t('feedback.correct') });
       if (mode === 'infinite') {
         const nextUsed = new Set(usedIds);
         nextUsed.add(currentSong.id);
@@ -536,10 +532,10 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
       const isLast = segmentIndex >= CLIP_MARKS.length - 1;
       const message =
         mode === 'daily' && isLast
-          ? `No es esa. Tenés intentos ilimitados con el clip de ${MAX_CLIP_DURATION} s.`
+          ? t('feedback.wrongUnlimited', { seconds: MAX_CLIP_DURATION })
           : isLast
-            ? 'No es esa.'
-            : `No es esa. Ahora podés escuchar ${CLIP_MARKS[segmentIndex + 1]} s.`;
+            ? t('feedback.wrong')
+            : t('feedback.wrongNext', { seconds: CLIP_MARKS[segmentIndex + 1] });
       setGuessFeedback({ kind: 'wrong', message });
       schedule(() => advanceSegment(), 1600);
     }
@@ -560,7 +556,6 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     setQuery('');
     setGuessFeedback(null);
     setAttempts(0);
-    setAudioError(null);
     setCurrentSong(null);
     setAudioReady(false);
     setCopyError(false);
@@ -623,7 +618,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
             type="button"
             onClick={onHome}
             className="group flex items-center gap-3 rounded-full px-4 py-2 text-left transition-colors hover:bg-white/5"
-            aria-label="Volver al menú principal"
+            aria-label={t('game.backHome')}
           >
             <img
               src="/favicon.svg"
@@ -644,16 +639,24 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
               className="justify-self-start inline-flex items-center gap-1 h-9 -ml-2 pl-2 pr-3 rounded-full text-sm text-neutral-400 hover:text-white hover:bg-white/5 transition-colors"
             >
               <BackIcon />
-              Inicio
+              {t('common.home')}
             </button>
             <span className="justify-self-center text-[11px] sm:text-xs font-medium text-neutral-500 uppercase tracking-[0.18em]">
-              {mode === 'daily' ? 'Diario' : 'Infinito'}
+              {mode === 'daily' ? t('common.daily') : t('common.infinite')}
             </span>
             <div className="justify-self-end">
+              {mode === 'daily' && attempts > 0 && roundStatus === 'playing' && (
+                <span
+                  className="rounded-full border border-neutral-700 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-neutral-400"
+                  aria-live="polite"
+                >
+                  {t('game.attempts', { count: attempts })}
+                </span>
+              )}
               {mode === 'infinite' && !infiniteOver && (
                 <div
                   className="flex items-center gap-0.5"
-                  aria-label={`${lives} ${lives === 1 ? 'vida restante' : 'vidas restantes'}`}
+                  aria-label={t('game.livesRemaining', { count: lives })}
                 >
                   {Array.from({ length: INFINITE_LIVES }).map((_, i) => (
                     <span key={i} aria-hidden="true">
@@ -664,16 +667,19 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
               )}
               {mode === 'infinite' && infiniteOver && (
                 <span className="text-sm font-mono" style={{ color: accent }}>
-                  {score} pts
+                  {t('game.pointsShort', { count: score })}
                 </span>
               )}
             </div>
+          </div>
+          <div className="flex justify-end -mt-2 sm:-mt-3">
+            <LanguageSwitcher />
           </div>
 
           <div
             className="flex rounded-full bg-black/40 p-1 border border-neutral-800"
             role="group"
-            aria-label="Dificultad"
+            aria-label={t('common.difficulty')}
           >
             {POOLS.map((p) => {
               const status = mode === 'daily' ? getPoolStatus(dailyState, p) : 'pending';
@@ -696,11 +702,9 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
                     boxShadow: active ? `inset 0 0 0 1px ${color}` : undefined,
                   }}
                   aria-pressed={active}
-                  aria-label={`${POOL_LABELS[p]}: ${
-                    status === 'won' ? 'acertada' : status === 'lost' ? 'fallada' : 'pendiente'
-                  }`}
+                  aria-label={`${t(POOL_I18N_KEYS[p])}: ${t(`status.${status}`)}`}
                 >
-                  {POOL_LABELS[p]}
+                  {t(POOL_I18N_KEYS[p])}
                 </button>
               );
             })}
@@ -708,8 +712,11 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
 
           {mode === 'daily' && (
             <p className="text-center text-[11px] sm:text-xs text-neutral-500 -mt-1" aria-live="polite">
-              {dailyCompletedCount}/5 completadas · {dailyWonCount}{' '}
-              {dailyWonCount === 1 ? 'acertada' : 'acertadas'}
+              {t('game.completed', {
+                completed: dailyCompletedCount,
+                won: dailyWonCount,
+                count: dailyWonCount,
+              })}
             </p>
           )}
 
@@ -718,9 +725,13 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
               <span className="font-mono text-xl sm:text-2xl font-semibold" style={{ color: accent }}>
                 {score}
               </span>
-              <span className="text-neutral-500 text-xs sm:text-sm ml-1.5">canciones</span>
+              <span className="text-neutral-500 text-xs sm:text-sm ml-1.5">
+                {t('game.songs', { count: score })}
+              </span>
               {highScore > 0 && (
-                <span className="text-neutral-600 text-[11px] sm:text-xs ml-2">récord {highScore}</span>
+                <span className="text-neutral-600 text-[11px] sm:text-xs ml-2">
+                  {t('game.record', { score: highScore })}
+                </span>
               )}
             </div>
           )}
@@ -739,7 +750,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
                       color: '#0E0E0E',
                       boxShadow: `0 0 28px ${accent}38`,
                     }}
-                    aria-label={isPlaying ? 'Pausar' : 'Reproducir'}
+                    aria-label={isPlaying ? t('common.pause') : t('common.play')}
                   >
                     {loading ? (
                       <span className="w-6 h-6 border-2 border-bg border-t-transparent rounded-full animate-spin" />
@@ -760,7 +771,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
                   <div
                     className="h-1.5 sm:h-2 bg-white/10 rounded-full overflow-hidden"
                     role="progressbar"
-                    aria-label="Progreso del fragmento de audio"
+                    aria-label={t('game.audioProgress')}
                     aria-valuemin={0}
                     aria-valuemax={currentDuration}
                     aria-valuenow={Math.min(playbackProgress, currentDuration)}
@@ -787,24 +798,6 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
                     ))}
                   </div>
                 </div>
-                {audioError && !loading && (
-                  <div
-                    role="alert"
-                    className="flex max-w-md flex-col items-center gap-2 text-center"
-                  >
-                    <p className="text-neutral-400 text-xs sm:text-sm">{audioError}</p>
-                    <button
-                      type="button"
-                      onClick={handleRetryAudio}
-                      className="rounded-xl border border-neutral-600 px-3.5 py-1.5 text-xs font-medium text-white hover:border-neutral-400"
-                    >
-                      Reintentar
-                    </button>
-                  </div>
-                )}
-                {!audioReady && !loading && !audioError && (
-                  <p className="text-neutral-500 text-xs sm:text-sm">Preview no disponible</p>
-                )}
               </div>
 
               <form
@@ -828,10 +821,24 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
                   <button
                     type="submit"
                     disabled={!query.trim() || guessFeedback !== null}
-                    className="h-11 px-4 rounded-xl font-semibold text-bg text-sm transition-opacity disabled:opacity-40"
-                    style={{ backgroundColor: accent }}
+                    className={`h-11 px-4 rounded-xl font-semibold text-bg text-sm transition-colors ${
+                      guessFeedback ? 'disabled:opacity-100' : 'disabled:opacity-40'
+                    }`}
+                    style={{
+                      backgroundColor:
+                        guessFeedback?.kind === 'wrong'
+                          ? '#FF453A'
+                          : guessFeedback?.kind === 'correct'
+                            ? '#C8FF00'
+                            : accent,
+                      color: guessFeedback?.kind === 'wrong' ? '#FFFFFF' : '#0E0E0E',
+                    }}
                   >
-                    Adivinar
+                    {guessFeedback?.kind === 'correct'
+                      ? `✓ ${t('feedback.correct')}`
+                      : guessFeedback?.kind === 'wrong'
+                        ? `✕ ${t('feedback.wrong')}`
+                        : t('game.guess')}
                   </button>
                   <button
                     type="button"
@@ -840,28 +847,28 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
                     className="h-11 px-4 rounded-xl bg-white/5 border border-neutral-700 text-neutral-300 text-sm font-medium hover:border-neutral-500 transition-colors disabled:opacity-40"
                   >
                     {mode === 'daily' && segmentIndex >= CLIP_MARKS.length - 1
-                      ? 'Rendirse'
-                      : 'Saltar'}
+                      ? t('game.surrender')
+                      : t('game.skip')}
                   </button>
                 </div>
               </form>
-
-              <GuessFeedback
+              <span
                 id={feedbackId}
-                kind={guessFeedback?.kind ?? null}
-                message={guessFeedback?.message ?? ''}
-              />
-              {mode === 'daily' && attempts > 0 && (
-                <p className="text-center text-xs text-neutral-500">
-                  {attempts} {attempts === 1 ? 'intento' : 'intentos'} · sin límite
-                </p>
-              )}
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                className="sr-only"
+              >
+                {guessFeedback?.message ?? ''}
+              </span>
             </>
           )}
 
           {revealSong && currentSong && mode === 'infinite' && (
             <div className="flex-1 flex flex-col items-center justify-center gap-1.5 py-8">
-              <p className="text-neutral-500 text-xs sm:text-sm uppercase tracking-wider">Era</p>
+              <p className="text-neutral-500 text-xs sm:text-sm uppercase tracking-wider">
+                {t('game.was')}
+              </p>
               <p className="text-lg sm:text-xl font-semibold text-white">{currentSong.title}</p>
               <p className="text-neutral-400 text-sm sm:text-base">{currentSong.artist}</p>
             </div>
@@ -886,8 +893,8 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
                 }}
               >
                 {(completedResult?.won ?? roundStatus === 'won')
-                  ? `✓ Diaria ${POOL_LABELS[pool]} acertada`
-                  : `✕ Diaria ${POOL_LABELS[pool]} fallada`}
+                  ? t('game.dailyWon', { pool: t(POOL_I18N_KEYS[pool]) })
+                  : t('game.dailyLost', { pool: t(POOL_I18N_KEYS[pool]) })}
               </p>
               <ShareCard
                 mode={mode}
@@ -912,11 +919,11 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
               />
               {copyError && (
                 <p role="alert" className="text-expert text-xs sm:text-sm text-center">
-                  No se pudo copiar. Revisá los permisos del navegador.
+                  {t('share.copyError')}
                 </p>
               )}
               <p className="text-neutral-500 text-xs sm:text-sm text-center">
-                Elegí otra dificultad para seguir jugando hoy.
+                {t('game.chooseAnother')}
               </p>
             </div>
           )}
@@ -930,14 +937,16 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
                 </div>
               )}
               <p className="text-xl sm:text-2xl font-bold" style={{ color: accent }}>
-                Game Over
+                {t('game.gameOver')}
               </p>
               <p className="font-mono text-3xl sm:text-4xl font-bold leading-none" style={{ color: accent }}>
                 {score}
               </p>
-              <p className="text-neutral-400 text-sm">canciones adivinadas</p>
+              <p className="text-neutral-400 text-sm">
+                {t('game.songsGuessed', { count: score })}
+              </p>
               {score >= highScore && score > 0 && (
-                <p className="text-easy text-xs sm:text-sm">¡Nuevo récord!</p>
+                <p className="text-easy text-xs sm:text-sm">{t('game.newRecord')}</p>
               )}
               <ShareCard
                 mode={mode}
@@ -948,7 +957,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
               />
               {copyError && (
                 <p role="alert" className="text-expert text-xs sm:text-sm text-center">
-                  No se pudo copiar. Revisá los permisos del navegador.
+                  {t('share.copyError')}
                 </p>
               )}
               <button
@@ -957,7 +966,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
                 className="w-full h-11 rounded-xl font-semibold text-bg text-sm sm:text-base transition-colors mt-1"
                 style={{ backgroundColor: accent }}
               >
-                Jugar de nuevo
+                {t('game.playAgain')}
               </button>
             </div>
           )}

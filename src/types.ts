@@ -40,12 +40,12 @@ export const POOL_COLORS: Record<Pool, string> = {
   impossible: '#BF5AF2',
 };
 
-export const POOL_LABELS: Record<Pool, string> = {
-  easy: 'Fácil',
-  medium: 'Medio',
-  hard: 'Difícil',
-  expert: 'Experto',
-  impossible: 'Imposible',
+export const POOL_I18N_KEYS: Record<Pool, `pools.${Pool}`> = {
+  easy: 'pools.easy',
+  medium: 'pools.medium',
+  hard: 'pools.hard',
+  expert: 'pools.expert',
+  impossible: 'pools.impossible',
 };
 
 export const POOL_EMOJI: Record<Pool, string> = {

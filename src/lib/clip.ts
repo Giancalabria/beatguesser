@@ -1,3 +1,5 @@
+import i18n from '../i18n';
+
 export type ClipLoadState = 'idle' | 'loading' | 'ready' | 'error';
 
 export interface ClipError {
@@ -16,15 +18,15 @@ function audioErrorMessage(audio: HTMLAudioElement | null): string {
   // MediaError constants: 1 aborted, 2 network, 3 decode, 4 src not supported
   switch (code) {
     case 1:
-      return 'Carga de audio abortada';
+      return i18n.t('audio.loadAborted');
     case 2:
-      return 'Error de red al cargar el audio';
+      return i18n.t('audio.networkError');
     case 3:
-      return 'No se pudo decodificar el audio';
+      return i18n.t('audio.decodeError');
     case 4:
-      return 'Formato de audio no soportado';
+      return i18n.t('audio.unsupportedFormat');
     default:
-      return 'Error al cargar el audio';
+      return i18n.t('audio.loadError');
   }
 }
 
@@ -74,7 +76,7 @@ export class AudioClipper {
 
     await new Promise<void>((resolve, reject) => {
       if (!this.audio || generation !== this.loadGeneration) {
-        return reject(new Error('Audio not initialized'));
+        return reject(new Error(i18n.t('audio.notInitialized')));
       }
 
       const audio = this.audio;
@@ -121,7 +123,7 @@ export class AudioClipper {
       audio.addEventListener('error', onError, { once: true });
 
       this.loadTimeout = setTimeout(() => {
-        finish(false, new Error('Timeout al cargar el audio'));
+        finish(false, new Error(i18n.t('audio.loadTimeout')));
       }, LOAD_TIMEOUT_MS);
 
       audio.load();
@@ -131,7 +133,7 @@ export class AudioClipper {
 
   async play(durationSec: number): Promise<void> {
     if (!this.audio) {
-      throw new Error('Audio no cargado');
+      throw new Error(i18n.t('audio.notLoaded'));
     }
 
     this.clearStopTimer();
@@ -142,7 +144,7 @@ export class AudioClipper {
       this.setPlaying(true);
     } catch (err) {
       this.setPlaying(false);
-      const message = err instanceof Error ? err.message : 'No se pudo reproducir el audio';
+      const message = err instanceof Error ? err.message : i18n.t('audio.playFailed');
       this.emitError({ phase: 'play', message });
       throw err instanceof Error ? err : new Error(message);
     }

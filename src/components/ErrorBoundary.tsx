@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import i18n from '../i18n';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -26,16 +27,16 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
       return (
         <main className="min-h-dvh grid place-items-center p-6">
           <div className="screen-panel max-w-md text-center">
-            <h1 className="text-2xl font-bold text-white">Algo salió mal</h1>
+            <h1 className="text-2xl font-bold text-white">{i18n.t('errorBoundary.title')}</h1>
             <p className="mt-3 text-neutral-400">
-              Recargá la aplicación para volver a intentarlo.
+              {i18n.t('errorBoundary.description')}
             </p>
             <button
               type="button"
               onClick={() => window.location.reload()}
               className="mt-6 w-full h-11 rounded-xl bg-easy px-5 text-sm font-semibold text-bg"
             >
-              Recargar
+              {i18n.t('errorBoundary.reload')}
             </button>
           </div>
         </main>

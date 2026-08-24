@@ -46,6 +46,8 @@ const spotifySearchCache = new Map<
 >();
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PREVIEW_REQUEST_TIMEOUT_MS = 6_000;
+const ITUNES_STOREFRONTS = ['AR', 'US'] as const;
 
 interface ITunesResult {
   results?: Array<{
@@ -58,6 +60,20 @@ interface ITunesResult {
 function logDev(...args: unknown[]): void {
   if (import.meta.env.DEV) {
     console.debug('[preview]', ...args);
+  }
+}
+
+async function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Preview request timed out')), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 
@@ -95,64 +111,37 @@ async function fetchPreviewFromITunes(
   const cached = previewCache.get(term);
   if (cached) return cached;
 
-  try {
-    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=song&country=AR&limit=25`;
-    const res = await fetch(url);
-    if (!res.ok) {
-      logDev('iTunes search failed', term, res.status);
-      return undefined;
-    }
+  for (const country of ITUNES_STOREFRONTS) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), PREVIEW_REQUEST_TIMEOUT_MS);
+    try {
+      const url = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=song&country=${country}&limit=25`;
+      const res = await fetch(url, { signal: controller.signal });
+      if (!res.ok) {
+        logDev('iTunes search failed', term, country, res.status);
+        continue;
+      }
 
-    const data = (await res.json()) as ITunesResult;
-    const matched = data.results?.find(
-      (result) =>
-        result.previewUrl &&
-        matchesExpectedITunesResult(result, expectedTitle, expectedArtist),
-    );
-    const previewUrl = matched?.previewUrl;
-    if (previewUrl) {
-      previewCache.set(term, previewUrl);
-      logDev('iTunes preview resolved', term);
-      return previewUrl;
+      const data = (await res.json()) as ITunesResult;
+      const matched = data.results?.find(
+        (result) =>
+          result.previewUrl &&
+          matchesExpectedITunesResult(result, expectedTitle, expectedArtist),
+      );
+      const previewUrl = matched?.previewUrl;
+      if (previewUrl) {
+        previewCache.set(term, previewUrl);
+        logDev('iTunes preview resolved', term, country);
+        return previewUrl;
+      }
+      logDev('iTunes search empty', term, country);
+    } catch (err) {
+      logDev('iTunes unavailable', term, country, err);
+    } finally {
+      clearTimeout(timeout);
     }
-    logDev('iTunes search empty', term);
-  } catch (err) {
-    logDev('iTunes unavailable', term, err);
   }
   return undefined;
-}
-
-/** Probe that a preview URL can start loading in this browser. */
-export async function probePreviewUrl(url: string, timeoutMs = 8_000): Promise<boolean> {
-  return new Promise((resolve) => {
-    const audio = new Audio();
-    let settled = false;
-
-    const finish = (ok: boolean) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      resolve(ok);
-    };
-
-    const onReady = () => finish(true);
-    const onError = () => finish(false);
-    const cleanup = () => {
-      clearTimeout(timer);
-      audio.removeEventListener('canplay', onReady);
-      audio.removeEventListener('loadeddata', onReady);
-      audio.removeEventListener('error', onError);
-      audio.src = '';
-    };
-
-    const timer = setTimeout(() => finish(false), timeoutMs);
-    audio.preload = 'metadata';
-    audio.addEventListener('canplay', onReady, { once: true });
-    audio.addEventListener('loadeddata', onReady, { once: true });
-    audio.addEventListener('error', onError, { once: true });
-    audio.src = url;
-    audio.load();
-  });
 }
 
 function itunesTermFor(song: Song): string {
@@ -178,9 +167,12 @@ async function refreshRemotePreview(song: Song): Promise<string | undefined> {
   if (!supabase) return undefined;
 
   try {
-    const { data, error } = await supabase.functions.invoke<RefreshedPreviewResponse>(
-      'resolve-preview',
-      { body: { songId: song.id } },
+    const { data, error } = await withTimeout(
+      supabase.functions.invoke<RefreshedPreviewResponse>(
+        'resolve-preview',
+        { body: { songId: song.id } },
+      ),
+      PREVIEW_REQUEST_TIMEOUT_MS,
     );
     if (error) throw error;
     const previewUrl = data?.previewUrl;
@@ -200,6 +192,28 @@ export function getSeedCatalog(): Song[] {
 
 export function getSongsByPool(pool: Pool): Song[] {
   return SEED_SONGS.filter((s) => s.pool === pool).map((s) => ({ ...s }));
+}
+
+function stableHash(value: string): number {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(index);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+/** Deterministic same-pool backups so every player receives the same replacement. */
+export function getBackupSongs(song: Song): Song[] {
+  const primaryLabel = `${song.title}::${song.artist}`.toLocaleLowerCase();
+  const candidates = getSongsByPool(song.pool).filter(
+    (candidate) =>
+      candidate.id !== song.id &&
+      `${candidate.title}::${candidate.artist}`.toLocaleLowerCase() !== primaryLabel,
+  );
+  if (candidates.length < 2) return candidates;
+  const offset = stableHash(`${song.id}:${song.title}:${song.artist}`) % candidates.length;
+  return [...candidates.slice(offset), ...candidates.slice(0, offset)];
 }
 
 interface SongRow {
@@ -339,30 +353,34 @@ export async function searchSpotifyCatalog(
   }
 }
 
-/**
- * Resolve a playable preview URL.
- * If a persisted URL exists but fails to load, fall back to iTunes search.
- */
-export async function resolveSongPreview(song: Song): Promise<Song> {
+/** Resolve every available source in failover order for one song. */
+export async function resolveSongPreviewUrls(song: Song): Promise<string[]> {
   const term = itunesTermFor(song);
   const requiresRefresh = Boolean(
     song.previewUrl && isTemporaryDeezerPreview(song.previewUrl),
   );
+  const candidates: string[] = [];
 
   if (song.previewUrl && !requiresRefresh) {
-    const ok = await probePreviewUrl(song.previewUrl);
-    if (ok) {
-      return song;
-    }
-    logDev('stored preview broken, refreshing remotely', song.id, song.previewUrl);
+    candidates.push(song.previewUrl);
   }
 
-  const refreshedPreview = await refreshRemotePreview(song);
+  const [refreshedPreview, previewUrl] = await Promise.all([
+    refreshRemotePreview(song),
+    fetchPreviewFromITunes(term, song.title, song.artist),
+  ]);
   if (refreshedPreview) {
-    return { ...song, previewUrl: refreshedPreview };
+    candidates.push(refreshedPreview);
   }
 
-  const previewUrl = await fetchPreviewFromITunes(term, song.title, song.artist);
+  if (previewUrl) candidates.push(previewUrl);
+
+  return [...new Set(candidates)];
+}
+
+/** Backwards-compatible single-source resolver. */
+export async function resolveSongPreview(song: Song): Promise<Song> {
+  const [previewUrl] = await resolveSongPreviewUrls(song);
   return { ...song, previewUrl };
 }
 
