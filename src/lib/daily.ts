@@ -1,6 +1,6 @@
 import { getSongsByPool } from './catalog';
 import { getSupabase } from './supabase';
-import type { Pool, Song } from '../types';
+import type { LangMode, Pool, Song } from '../types';
 
 const TIMEZONE = 'America/Argentina/Buenos_Aires';
 
@@ -35,12 +35,12 @@ function hashString(str: string): number {
   return Math.abs(hash);
 }
 
-export function pickDailySong(dateKey: string, pool: Pool): Song {
-  const songs = getSongsByPool(pool);
+export function pickDailySong(dateKey: string, pool: Pool, lang: LangMode = 'global'): Song {
+  const songs = getSongsByPool(pool, lang);
   if (songs.length === 0) {
-    throw new Error(`No songs for pool: ${pool}`);
+    throw new Error(`No songs for pool: ${pool} (${lang})`);
   }
-  const index = hashString(`${dateKey}:${pool}`) % songs.length;
+  const index = hashString(`${dateKey}:${lang}:${pool}`) % songs.length;
   return { ...songs[index] };
 }
 
@@ -50,58 +50,68 @@ interface DailyPickRow {
     | {
         id: string;
         spotify_id: string | null;
+        apple_id?: string | null;
         title: string;
         artist: string;
-        pool: Pool;
         preview_url: string | null;
+        artwork_url?: string | null;
       }
     | {
         id: string;
         spotify_id: string | null;
+        apple_id?: string | null;
         title: string;
         artist: string;
-        pool: Pool;
         preview_url: string | null;
+        artwork_url?: string | null;
       }[]
     | null;
 }
 
-function songFromPick(row: DailyPickRow): Song | null {
+function songFromPick(row: DailyPickRow, pool: Pool, lang: LangMode): Song | null {
   const raw = row.songs;
   const s = Array.isArray(raw) ? raw[0] : raw;
   if (!s) return null;
   return {
     id: s.id,
     spotifyId: s.spotify_id ?? undefined,
+    appleId: s.apple_id ?? undefined,
     title: s.title,
     artist: s.artist,
-    pool: s.pool,
+    pool,
+    lang,
     itunesSearchTerm: `${s.title} ${s.artist}`,
     previewUrl: s.preview_url ?? undefined,
+    imageUrl: s.artwork_url ?? undefined,
   };
 }
 
 /** Shared daily from Supabase (pre-picked). Falls back to local catalog hash. */
-export async function resolveDailySong(pool: Pool, dateKey: string = getDateKey()): Promise<Song> {
+export async function resolveDailySong(
+  pool: Pool,
+  lang: LangMode = 'global',
+  dateKey: string = getDateKey(),
+): Promise<Song> {
   const supabase = getSupabase();
   if (supabase) {
     const { data, error } = await supabase
       .from('daily_picks')
-      .select('song_id, songs (id, spotify_id, title, artist, pool, preview_url)')
+      .select('song_id, songs (id, spotify_id, apple_id, title, artist, preview_url, artwork_url)')
       .eq('date', dateKey)
+      .eq('lang', lang)
       .eq('pool', pool)
       .maybeSingle();
 
     if (!error && data) {
-      const song = songFromPick(data as DailyPickRow);
+      const song = songFromPick(data as DailyPickRow, pool, lang);
       if (song) return song;
     }
     if (error) {
-      logDailyDev('Supabase pick unavailable; using deterministic fallback', pool, dateKey, error);
+      logDailyDev('Supabase pick unavailable; using deterministic fallback', pool, lang, dateKey, error);
     } else {
-      logDailyDev('Daily pick missing; using deterministic fallback', pool, dateKey);
+      logDailyDev('Daily pick missing; using deterministic fallback', pool, lang, dateKey);
     }
   }
 
-  return pickDailySong(dateKey, pool);
+  return pickDailySong(dateKey, pool, lang);
 }

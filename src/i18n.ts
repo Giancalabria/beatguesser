@@ -16,6 +16,7 @@ const resources = {
         daily: 'Diario',
         infinite: 'Infinito',
         difficulty: 'Dificultad',
+        board: 'Tablero',
         play: 'Reproducir',
         pause: 'Pausar',
         retry: 'Reintentar',
@@ -27,6 +28,11 @@ const resources = {
         expert: 'Experto',
         impossible: 'Imposible',
       },
+      boards: {
+        global: 'Mundial',
+        es: 'Español',
+        en: 'Inglés',
+      },
       status: {
         won: 'acertada',
         lost: 'fallada',
@@ -35,6 +41,8 @@ const resources = {
       home: {
         tagline: '¿Cuánto necesitás escuchar?',
         dailyProgress: '{{count}}/5 completadas hoy',
+        boardProgress: '{{count}}/5 hoy',
+        infiniteBoard: 'Tablero: {{board}}',
         instructions:
           'Escuchá fragmentos cada vez más largos e intentá adivinar la canción antes de que se acabe el tiempo.',
       },
@@ -58,7 +66,7 @@ const resources = {
         listenOnSpotify: 'Escuchar en Spotify',
         dailyWon: '✓ Diaria {{pool}} acertada',
         dailyLost: '✕ Diaria {{pool}} fallada',
-        chooseAnother: 'Elegí otra dificultad para seguir jugando hoy.',
+        chooseAnother: 'Elegí otro tablero o dificultad para seguir jugando hoy.',
         gameOver: 'Fin del juego',
         songsGuessed_one: '{{count}} canción adivinada',
         songsGuessed_other: '{{count}} canciones adivinadas',
@@ -147,6 +155,7 @@ const resources = {
         daily: 'Daily',
         infinite: 'Infinite',
         difficulty: 'Difficulty',
+        board: 'Board',
         play: 'Play',
         pause: 'Pause',
         retry: 'Retry',
@@ -158,6 +167,11 @@ const resources = {
         expert: 'Expert',
         impossible: 'Impossible',
       },
+      boards: {
+        global: 'World',
+        es: 'Spanish',
+        en: 'English',
+      },
       status: {
         won: 'guessed',
         lost: 'missed',
@@ -166,6 +180,8 @@ const resources = {
       home: {
         tagline: 'How much do you need to hear?',
         dailyProgress: '{{count}}/5 completed today',
+        boardProgress: '{{count}}/5 today',
+        infiniteBoard: 'Board: {{board}}',
         instructions:
           'Listen to increasingly longer clips and try to guess the song before time runs out.',
       },
@@ -189,7 +205,7 @@ const resources = {
         listenOnSpotify: 'Listen on Spotify',
         dailyWon: '✓ {{pool}} daily guessed',
         dailyLost: '✕ {{pool}} daily missed',
-        chooseAnother: 'Choose another difficulty to keep playing today.',
+        chooseAnother: 'Choose another board or difficulty to keep playing today.',
         gameOver: 'Game Over',
         songsGuessed_one: '{{count}} song guessed',
         songsGuessed_other: '{{count}} songs guessed',

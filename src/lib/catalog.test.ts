@@ -91,6 +91,7 @@ describe('searchSpotifyCatalog', () => {
       title: 'Remote Song',
       artist: 'Remote Artist',
       pool: 'hard' as const,
+      lang: 'en' as const,
       itunesSearchTerm: 'Remote Song Remote Artist',
     };
 
@@ -122,7 +123,7 @@ describe('searchSpotifyCatalog', () => {
       expect.arrayContaining(['Blinding Lights', 'Shape of You', 'Cruel Summer']),
     );
     expect(getSongsByPool('medium').map((song) => song.title)).toEqual(
-      expect.arrayContaining(['Despacito', 'Levitating']),
+      expect.arrayContaining(['Hawái', 'Levitating']),
     );
     expect(getSongsByPool('expert').map((song) => song.title)).toEqual(
       expect.arrayContaining(['Viva La Vida', 'Poker Face', 'Seven Nation Army']),
@@ -130,6 +131,10 @@ describe('searchSpotifyCatalog', () => {
     expect(getSongsByPool('impossible').map((song) => song.title)).toEqual(
       expect.arrayContaining(['The Scientist', 'Take Me to Church', 'Pumped Up Kicks']),
     );
+    expect(getSongsByPool('easy', 'es').map((song) => song.title)).toEqual(
+      expect.arrayContaining(['Despacito', 'Titi Me Preguntó']),
+    );
+    expect(getSongsByPool('easy', 'en').every((song) => song.lang === 'en')).toBe(true);
   });
 });
 

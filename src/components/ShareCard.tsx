@@ -1,6 +1,13 @@
 import { useTranslation } from 'react-i18next';
-import type { DailyResult, GameMode, Pool } from '../types';
-import { CLIP_MARKS, POOL_COLORS, POOL_EMOJI, POOL_I18N_KEYS } from '../types';
+import type { DailyResult, GameMode, LangMode, Pool } from '../types';
+import {
+  CLIP_MARKS,
+  LANG_EMOJI,
+  LANG_I18N_KEYS,
+  POOL_COLORS,
+  POOL_EMOJI,
+  POOL_I18N_KEYS,
+} from '../types';
 import { getDateKey } from '../lib/daily';
 import { isPerfectWin } from '../lib/storage';
 import i18n from '../i18n';
@@ -8,6 +15,7 @@ import i18n from '../i18n';
 interface ShareCardProps {
   mode: GameMode;
   pool: Pool;
+  lang?: LangMode;
   result?: DailyResult;
   score?: number;
   streak?: number;
@@ -19,11 +27,13 @@ interface ShareCardProps {
 interface ShareExtras {
   streak?: number;
   perfectDay?: boolean;
+  lang?: LangMode;
 }
 
 export default function ShareCard({
   mode,
   pool,
+  lang = 'global',
   result,
   score,
   streak,
@@ -32,7 +42,11 @@ export default function ShareCard({
   copied,
 }: ShareCardProps) {
   const { t } = useTranslation();
-  const shareText = buildShareText(mode, pool, result, score, undefined, { streak, perfectDay });
+  const shareText = buildShareText(mode, pool, result, score, undefined, {
+    streak,
+    perfectDay,
+    lang,
+  });
 
   return (
     <div className="w-full bg-white/5 rounded-2xl p-4 border border-neutral-800">
@@ -60,6 +74,10 @@ export function getShareUrl(): string {
   return new URL('/', window.location.href).toString();
 }
 
+function boardLabel(lang: LangMode): string {
+  return `${LANG_EMOJI[lang]} ${i18n.t(LANG_I18N_KEYS[lang])}`;
+}
+
 export function buildShareMessage(
   mode: GameMode,
   pool: Pool,
@@ -68,6 +86,7 @@ export function buildShareMessage(
   extras: ShareExtras = {},
 ): string {
   const dateKey = getDateKey();
+  const lang = extras.lang ?? 'global';
   const maxMark = result ? CLIP_MARKS[result.maxSegment] ?? CLIP_MARKS[CLIP_MARKS.length - 1] : CLIP_MARKS[0];
 
   if (mode === 'daily' && result) {
@@ -83,14 +102,14 @@ export function buildShareMessage(
     const lines = [
       i18n.t('share.dailyChallenge'),
       `BeatGuesser #${dateKey}`,
-      `${i18n.t(POOL_I18N_KEYS[pool])} ${POOL_EMOJI[pool]} ${outcome}${attempts}`,
+      `${boardLabel(lang)} · ${i18n.t(POOL_I18N_KEYS[pool])} ${POOL_EMOJI[pool]} ${outcome}${attempts}`,
     ];
     if (extras.perfectDay) lines.push(`🌟 ${i18n.t('share.perfectDay')}`);
     if (extras.streak && extras.streak > 0) lines.push(i18n.t('share.streak', { count: extras.streak }));
     return lines.join('\n');
   }
   const songCount = score ?? 0;
-  return `${i18n.t('share.infiniteChallenge')}\n${i18n.t('share.infiniteTitle')}\n${i18n.t(POOL_I18N_KEYS[pool])} ${POOL_EMOJI[pool]} — ${i18n.t('share.songs', { count: songCount })}`;
+  return `${i18n.t('share.infiniteChallenge')}\n${i18n.t('share.infiniteTitle')}\n${boardLabel(lang)} · ${i18n.t(POOL_I18N_KEYS[pool])} ${POOL_EMOJI[pool]} — ${i18n.t('share.songs', { count: songCount })}`;
 }
 
 export function buildShareText(

@@ -12,8 +12,9 @@
     "pick": "node scripts/pick.mjs",
     "pick:force": "node scripts/pick.mjs --force",
     "pick:today": "node scripts/pick.mjs --today --force",
+    "ingest": "node scripts/ingest.mjs",
     "db:push": "supabase db push",
-    "fn:deploy": "supabase functions deploy pick-daily search-songs resolve-preview"
+    "fn:deploy": "supabase functions deploy pick-daily search-songs resolve-preview ingest-charts"
   },
   "dependencies": {
     "@posthog/react": "^1.10.5",

@@ -10,10 +10,12 @@ describe('i18n', () => {
     await setLanguage('es');
     expect(i18n.t('home.tagline')).toBe('¿Cuánto necesitás escuchar?');
     expect(i18n.t('pools.hard')).toBe('Difícil');
+    expect(i18n.t('boards.global')).toBe('Mundial');
 
     await setLanguage('en');
     expect(i18n.t('home.tagline')).toBe('How much do you need to hear?');
     expect(i18n.t('pools.hard')).toBe('Hard');
+    expect(i18n.t('boards.es')).toBe('Spanish');
   });
 
   it('applies pluralization and interpolation in both languages', async () => {

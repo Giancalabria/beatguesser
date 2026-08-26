@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { analytics } from '../lib/analytics';
-import type { DailyResult, DailyState, GameMode, Pool, Song } from '../types';
+import type { DailyResult, DailyState, GameMode, LangMode, Pool, Song } from '../types';
 import {
   CLIP_MARKS,
   INFINITE_LIVES,
+  LANG_EMOJI,
+  LANG_I18N_KEYS,
+  LANG_MODES,
   POOLS,
   POOL_COLORS,
   POOL_I18N_KEYS,
@@ -28,9 +31,11 @@ import {
   isPerfectWin,
   isPoolCompleted,
   loadDailyState,
+  loadPreferredLangMode,
   saveDailyProgress,
   saveDailyResult,
   saveInfiniteHighScore,
+  savePreferredLangMode,
 } from '../lib/storage';
 import ShareCard, {
   buildShareMessage,
@@ -45,6 +50,7 @@ import StreakBadge from './StreakBadge';
 
 interface PlayScreenProps {
   mode: GameMode;
+  initialLang?: LangMode;
   onHome: () => void;
 }
 
@@ -100,12 +106,20 @@ function logAudioDev(...args: unknown[]): void {
   }
 }
 
-export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
-  const { t } = useTranslation();
+export default function PlayScreen({ mode, initialLang, onHome }: PlayScreenProps) {
+  const { t, i18n } = useTranslation();
+  const [langMode, setLangMode] = useState<LangMode>(
+    () => initialLang ?? loadPreferredLangMode(),
+  );
   const [pool, setPool] = useState<Pool>('easy');
-  const [dailyState, setDailyState] = useState<DailyState>(() => loadDailyState(getDateKey()));
+  const [dailyState, setDailyState] = useState<DailyState>(() =>
+    loadDailyState(getDateKey(), initialLang ?? loadPreferredLangMode()),
+  );
   const [segmentIndex, setSegmentIndex] = useState(() =>
-    mode === 'daily' ? (loadDailyState(getDateKey()).progress.easy?.segmentIndex ?? 0) : 0,
+    mode === 'daily'
+      ? (loadDailyState(getDateKey(), initialLang ?? loadPreferredLangMode()).progress.easy
+          ?.segmentIndex ?? 0)
+      : 0,
   );
   const [roundStatus, setRoundStatus] = useState<RoundStatus>('playing');
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
@@ -118,7 +132,10 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
   const [searchCatalog, setSearchCatalog] = useState<Song[]>([]);
   const [guessFeedback, setGuessFeedback] = useState<GuessFeedbackState>(null);
   const [attempts, setAttempts] = useState(() =>
-    mode === 'daily' ? (loadDailyState(getDateKey()).progress.easy?.attempts ?? 0) : 0,
+    mode === 'daily'
+      ? (loadDailyState(getDateKey(), initialLang ?? loadPreferredLangMode()).progress.easy
+          ?.attempts ?? 0)
+      : 0,
   );
   const [lives, setLives] = useState(INFINITE_LIVES);
   const [score, setScore] = useState(0);
@@ -127,19 +144,23 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
   const [poolLocked, setPoolLocked] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
-  const [highScore, setHighScore] = useState(() => getInfiniteHighScore('easy'));
+  const [highScore, setHighScore] = useState(() =>
+    getInfiniteHighScore(initialLang ?? loadPreferredLangMode(), 'easy'),
+  );
   const [revealSong, setRevealSong] = useState(false);
   const [showSurrenderDialog, setShowSurrenderDialog] = useState(false);
   const [showResultDialog, setShowResultDialog] = useState(false);
-  const [streak, setStreak] = useState(() => getVisibleStreak(getDateKey()));
+  const [streak, setStreak] = useState(() =>
+    getVisibleStreak(getDateKey(), initialLang ?? loadPreferredLangMode()),
+  );
 
   const clipperRef = useRef(new AudioClipper());
   const loadIdRef = useRef(0);
   const songRequestRef = useRef(0);
   const progressFrameRef = useRef<number | null>(null);
   const timersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
-  const dailyProgressRef = useRef({ mode, pool, roundStatus, attempts, segmentIndex });
-  dailyProgressRef.current = { mode, pool, roundStatus, attempts, segmentIndex };
+  const dailyProgressRef = useRef({ mode, pool, langMode, roundStatus, attempts, segmentIndex });
+  dailyProgressRef.current = { mode, pool, langMode, roundStatus, attempts, segmentIndex };
   const sessionAnalyticsRef = useRef({
     startedAt: Date.now(),
     clipsPlayed: 0,
@@ -147,6 +168,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     roundsCompleted: 0,
     score: 0,
     pool: 'easy' as Pool,
+    lang: (initialLang ?? loadPreferredLangMode()) as LangMode,
     ended: false,
   });
 
@@ -157,7 +179,9 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
   const completedResult = dailyState.results[pool];
   const perfectDay = isPerfectDay(dailyState);
   const fullClear = isFullClear(dailyState);
-  const shareExtras = { streak: streak.current, perfectDay };
+  const shareExtras = { streak: streak.current, perfectDay, lang: langMode };
+  const runLocked = mode === 'infinite' && poolLocked;
+  const gameContext = { mode, lang: langMode, pool };
   const dailyCompletedCount = POOLS.filter(
     (dailyPool) => getPoolStatus(dailyState, dailyPool) !== 'pending',
   ).length;
@@ -172,6 +196,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
       session.ended = true;
       analytics.gameSessionEnded({
         mode,
+        lang: session.lang,
         pool: session.pool,
         reason,
         duration_seconds: Math.round((Date.now() - session.startedAt) / 1000),
@@ -187,13 +212,13 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     (nextAttempts: number, nextSegment: number) => {
       if (mode !== 'daily') return;
       setDailyState(
-        saveDailyProgress(getDateKey(), pool, {
+        saveDailyProgress(getDateKey(), langMode, pool, {
           attempts: nextAttempts,
           segmentIndex: nextSegment,
         }),
       );
     },
-    [mode, pool],
+    [langMode, mode, pool],
   );
 
   const handleHome = useCallback(() => {
@@ -312,13 +337,13 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
   }, []);
 
   const initDailySong = useCallback(
-    async (p: Pool) => {
+    async (p: Pool, lang: LangMode) => {
       const requestId = ++songRequestRef.current;
       setLoading(true);
       try {
-        const song = await resolveDailySong(p, getDateKey());
+        const song = await resolveDailySong(p, lang, getDateKey());
         if (requestId !== songRequestRef.current) return;
-        const saved = loadDailyState(getDateKey()).progress[p];
+        const saved = loadDailyState(getDateKey(), lang).progress[p];
         setSegmentIndex(saved?.segmentIndex ?? 0);
         setRoundStatus('playing');
         setQuery('');
@@ -337,14 +362,10 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
   );
 
   const initInfiniteSong = useCallback(
-    async (p: Pool, used: Set<string>) => {
-      let activeUsed = used;
-      let song = pickRandomSong(p, activeUsed);
-      if (!song && activeUsed.size > 0) {
-        activeUsed = new Set();
-        setUsedIds(activeUsed);
-        song = pickRandomSong(p, activeUsed);
-      }
+    async (p: Pool, lang: LangMode, used: Set<string>) => {
+      const usedList = [...used];
+      const lastId = usedList[usedList.length - 1];
+      const song = await pickRandomSong(p, lang, used, lastId);
       if (!song) {
         setInfiniteOver(true);
         return;
@@ -363,7 +384,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     const handlePageHide = (event: PageTransitionEvent) => {
       const snap = dailyProgressRef.current;
       if (snap.mode === 'daily' && snap.roundStatus === 'playing') {
-        saveDailyProgress(getDateKey(), snap.pool, {
+        saveDailyProgress(getDateKey(), snap.langMode, snap.pool, {
           attempts: snap.attempts,
           segmentIndex: snap.segmentIndex,
         });
@@ -385,15 +406,16 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     });
 
     const dateKey = getDateKey();
-    setDailyState(loadDailyState(dateKey));
-    setHighScore(getInfiniteHighScore(pool));
+    setDailyState(loadDailyState(dateKey, langMode));
+    setHighScore(getInfiniteHighScore(langMode, pool));
+    setStreak(getVisibleStreak(dateKey, langMode));
 
     if (mode === 'daily') {
-      if (!isPoolCompleted(loadDailyState(dateKey), pool)) {
-        void initDailySong(pool);
+      if (!isPoolCompleted(loadDailyState(dateKey, langMode), pool)) {
+        void initDailySong(pool, langMode);
       }
     } else {
-      void initInfiniteSong(pool, new Set());
+      void initInfiniteSong(pool, langMode, new Set());
     }
 
     return () => {
@@ -415,13 +437,22 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
   useEffect(() => {
     let cancelled = false;
     setSearchCatalog([]);
-    void getSearchCatalog(pool).then((songs) => {
+    void getSearchCatalog(pool, langMode).then((songs) => {
       if (!cancelled) setSearchCatalog(songs);
     });
     return () => {
       cancelled = true;
     };
-  }, [pool]);
+  }, [pool, langMode]);
+
+  useEffect(() => {
+    analytics.setContext({
+      mode,
+      lang: langMode,
+      pool,
+      ui_language: i18n.resolvedLanguage?.startsWith('en') ? 'en' : 'es',
+    });
+  }, [i18n.resolvedLanguage, langMode, mode, pool]);
 
   useEffect(() => {
     if (mode !== 'daily') return;
@@ -430,15 +461,15 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
       const nextDate = getDateKey();
       if (nextDate === activeDate) return;
       activeDate = nextDate;
-      const state = loadDailyState(nextDate);
+      const state = loadDailyState(nextDate, langMode);
       setDailyState(state);
-      setStreak(getVisibleStreak(nextDate));
+      setStreak(getVisibleStreak(nextDate, langMode));
       setRoundStatus('playing');
       setShowResultDialog(false);
-      void initDailySong(pool);
+      void initDailySong(pool, langMode);
     }, 30_000);
     return () => window.clearInterval(interval);
-  }, [initDailySong, mode, pool]);
+  }, [initDailySong, langMode, mode, pool]);
 
   useEffect(() => {
     if (
@@ -490,8 +521,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
         .then(() => {
           sessionAnalyticsRef.current.clipsPlayed += 1;
           analytics.clipPlayed({
-            mode,
-            pool,
+            ...gameContext,
             clip_seconds: currentDuration,
             segment: segmentIndex + 1,
           });
@@ -530,33 +560,39 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
           songSpotifyId: currentSong.spotifyId,
           songImageUrl: currentSong.imageUrl,
         };
-        const nextDailyState = saveDailyResult(getDateKey(), result);
+        const nextDailyState = saveDailyResult(getDateKey(), langMode, result);
+        const nextStreak = getVisibleStreak(getDateKey(), langMode);
         setDailyState(nextDailyState);
-        setStreak(getVisibleStreak(getDateKey()));
+        setStreak(nextStreak);
         setShowResultDialog(true);
         sessionAnalyticsRef.current.roundsCompleted += 1;
         analytics.roundCompleted({
-          mode,
-          pool,
+          ...gameContext,
           result: won ? 'won' : 'lost',
           completion,
           attempts: attemptCount,
           clip_seconds: CLIP_MARKS[segmentIndex],
+          perfect: won && segmentIndex === 0,
         });
 
         const completedPools = POOLS.filter(
           (dailyPool) => getPoolStatus(nextDailyState, dailyPool) !== 'pending',
         );
         if (completedPools.length === POOLS.length) {
-          analytics.dailyChallengeCompleted(
-            POOLS.filter(
-              (dailyPool) => getPoolStatus(nextDailyState, dailyPool) === 'won',
-            ).length,
-          );
+          const poolsWon = POOLS.filter(
+            (dailyPool) => getPoolStatus(nextDailyState, dailyPool) === 'won',
+          ).length;
+          analytics.dailyChallengeCompleted({
+            ...gameContext,
+            pools_won: poolsWon,
+            full_clear: isFullClear(nextDailyState),
+            perfect_day: isPerfectDay(nextDailyState),
+            streak: nextStreak.current,
+          });
         }
       }
     },
-    [mode, currentSong, pool, segmentIndex, attempts],
+    [mode, currentSong, pool, langMode, segmentIndex, attempts],
   );
 
   const handleFail = useCallback(() => {
@@ -571,8 +607,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
       setUsedIds(nextUsed);
       sessionAnalyticsRef.current.roundsCompleted += 1;
       analytics.roundCompleted({
-        mode,
-        pool,
+        ...gameContext,
         result: 'lost',
         completion: 'out_of_segments',
         attempts,
@@ -585,10 +620,10 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
         setLives(0);
         setRoundStatus('lost');
         setInfiniteOver(true);
-        saveInfiniteHighScore(pool, score);
+        saveInfiniteHighScore(langMode, pool, score);
         setHighScore((hs) => Math.max(hs, score));
         analytics.infiniteGameCompleted({
-          pool,
+          ...gameContext,
           score,
           session_rounds_completed: sessionAnalyticsRef.current.roundsCompleted,
           is_new_high_score: score > highScore,
@@ -602,7 +637,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
           setRoundStatus('playing');
           setQuery('');
           setGuessFeedback(null);
-          void initInfiniteSong(pool, nextUsed);
+          void initInfiniteSong(pool, langMode, nextUsed);
         }, 1800);
       }
     }
@@ -611,6 +646,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     lives,
     currentSong,
     pool,
+    langMode,
     score,
     highScore,
     usedIds,
@@ -638,9 +674,21 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     if (roundStatus !== 'playing') return;
     if (mode === 'infinite') setPoolLocked(true);
     if (mode === 'daily' && segmentIndex >= CLIP_MARKS.length - 1) {
+      analytics.surrenderPrompted({
+        ...gameContext,
+        attempts,
+        clip_seconds: currentDuration,
+      });
       setShowSurrenderDialog(true);
       return;
     }
+    analytics.clipSkipped({
+      ...gameContext,
+      clip_seconds: currentDuration,
+      segment: segmentIndex + 1,
+      next_clip_seconds:
+        segmentIndex < CLIP_MARKS.length - 1 ? CLIP_MARKS[segmentIndex + 1] : undefined,
+    });
     advanceSegment();
   };
 
@@ -664,8 +712,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
       : isCorrectGuess(text, currentSong);
     sessionAnalyticsRef.current.guesses += 1;
     analytics.guessSubmitted({
-      mode,
-      pool,
+      ...gameContext,
       correct,
       attempt: nextAttempts,
       clip_seconds: currentDuration,
@@ -683,14 +730,14 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
         sessionAnalyticsRef.current.roundsCompleted += 1;
         sessionAnalyticsRef.current.score = nextScore;
         analytics.roundCompleted({
-          mode,
-          pool,
+          ...gameContext,
           result: 'won',
           completion: 'correct_guess',
           attempts: nextAttempts,
           clip_seconds: currentDuration,
           score: nextScore,
           lives_remaining: lives,
+          perfect: segmentIndex === 0,
         });
         setRevealSong(true);
         schedule(() => {
@@ -698,7 +745,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
           setGuessFeedback(null);
           setSegmentIndex(0);
           setQuery('');
-          void initInfiniteSong(pool, nextUsed);
+          void initInfiniteSong(pool, langMode, nextUsed);
         }, 2200);
       } else {
         finishRound(true, nextAttempts);
@@ -716,72 +763,114 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     }
   };
 
-  const handlePoolChange = (p: Pool) => {
-    if (mode === 'infinite' && poolLocked) return;
-    if (p === pool) return;
-
-    if (mode === 'daily' && roundStatus === 'playing') {
-      persistDailyProgress(attempts, segmentIndex);
-    }
-
+  const resetRoundChrome = () => {
     for (const timer of timersRef.current) clearTimeout(timer);
     timersRef.current.clear();
     clipperRef.current.stop();
     songRequestRef.current += 1;
     setIsPlaying(false);
-    setPool(p);
-    sessionAnalyticsRef.current.pool = p;
-    sessionAnalyticsRef.current.score = 0;
-    analytics.difficultySelected({
-      mode,
-      pool: p,
-      previous_pool: pool,
-    });
-    const nextDailyState = mode === 'daily' ? loadDailyState(getDateKey()) : dailyState;
-    const saved = mode === 'daily' ? nextDailyState.progress[p] : undefined;
-    setSegmentIndex(saved?.segmentIndex ?? 0);
     setRoundStatus('playing');
     setQuery('');
     setGuessFeedback(null);
-    setAttempts(saved?.attempts ?? 0);
     setCurrentSong(null);
     setAudioReady(false);
     setCopyError(false);
     setCopied(false);
     setShowSurrenderDialog(false);
     setShowResultDialog(false);
-    setHighScore(getInfiniteHighScore(p));
+    setRevealSong(false);
+  };
+
+  const handlePoolChange = (p: Pool) => {
+    if (runLocked) return;
+    if (p === pool) return;
+
+    if (mode === 'daily' && roundStatus === 'playing') {
+      persistDailyProgress(attempts, segmentIndex);
+    }
+
+    resetRoundChrome();
+    setPool(p);
+    sessionAnalyticsRef.current.pool = p;
+    sessionAnalyticsRef.current.score = 0;
+    analytics.difficultySelected({
+      ...gameContext,
+      pool: p,
+      previous_pool: pool,
+    });
+    const nextDailyState = mode === 'daily' ? loadDailyState(getDateKey(), langMode) : dailyState;
+    const saved = mode === 'daily' ? nextDailyState.progress[p] : undefined;
+    setSegmentIndex(saved?.segmentIndex ?? 0);
+    setAttempts(saved?.attempts ?? 0);
+    setHighScore(getInfiniteHighScore(langMode, p));
 
     if (mode === 'daily') {
       setDailyState(nextDailyState);
       if (!isPoolCompleted(nextDailyState, p)) {
-        void initDailySong(p);
+        void initDailySong(p, langMode);
       }
     } else {
       setUsedIds(new Set());
       setScore(0);
       setLives(INFINITE_LIVES);
       setInfiniteOver(false);
-      void initInfiniteSong(p, new Set());
+      void initInfiniteSong(p, langMode, new Set());
+    }
+  };
+
+  const handleLangChange = (nextLang: LangMode) => {
+    if (runLocked) return;
+    if (nextLang === langMode) return;
+
+    if (mode === 'daily' && roundStatus === 'playing') {
+      persistDailyProgress(attempts, segmentIndex);
+    }
+
+    resetRoundChrome();
+    setLangMode(nextLang);
+    savePreferredLangMode(nextLang);
+    sessionAnalyticsRef.current.lang = nextLang;
+    sessionAnalyticsRef.current.score = 0;
+    analytics.boardSelected({
+      ...gameContext,
+      lang: nextLang,
+      previous_lang: langMode,
+    });
+    const nextDailyState = loadDailyState(getDateKey(), nextLang);
+    const saved = mode === 'daily' ? nextDailyState.progress[pool] : undefined;
+    setSegmentIndex(saved?.segmentIndex ?? 0);
+    setAttempts(saved?.attempts ?? 0);
+    setHighScore(getInfiniteHighScore(nextLang, pool));
+    setStreak(getVisibleStreak(getDateKey(), nextLang));
+
+    if (mode === 'daily') {
+      setDailyState(nextDailyState);
+      if (!isPoolCompleted(nextDailyState, pool)) {
+        void initDailySong(pool, nextLang);
+      }
+    } else {
+      setUsedIds(new Set());
+      setScore(0);
+      setLives(INFINITE_LIVES);
+      setInfiniteOver(false);
+      void initInfiniteSong(pool, nextLang, new Set());
     }
   };
 
   const handleInfiniteRestart = () => {
-    for (const timer of timersRef.current) clearTimeout(timer);
-    timersRef.current.clear();
+    resetRoundChrome();
     setLives(INFINITE_LIVES);
     setScore(0);
     setUsedIds(new Set());
     setInfiniteOver(false);
     setPoolLocked(true);
-    setRoundStatus('playing');
     setSegmentIndex(0);
     sessionAnalyticsRef.current.score = 0;
     analytics.infiniteGameRestarted({
-      pool,
+      ...gameContext,
       previous_score: score,
     });
-    void initInfiniteSong(pool, new Set());
+    void initInfiniteSong(pool, langMode, new Set());
   };
 
   const handleCopyShare = async () => {
@@ -789,8 +878,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     try {
       await navigator.clipboard.writeText(text);
       analytics.resultShared({
-        mode,
-        pool,
+        ...gameContext,
         method: 'copy',
         result:
           mode === 'daily' ? (completedResult?.won ? 'won' : 'lost') : 'game_over',
@@ -815,8 +903,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
           url,
         });
         analytics.resultShared({
-          mode,
-          pool,
+          ...gameContext,
           method: 'native',
           result:
             mode === 'daily' ? (completedResult?.won ? 'won' : 'lost') : 'game_over',
@@ -825,8 +912,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
       } else {
         await navigator.clipboard.writeText(buildShareText(mode, pool, completedResult, score, url, shareExtras));
         analytics.resultShared({
-          mode,
-          pool,
+          ...gameContext,
           method: 'copy_fallback',
           result:
             mode === 'daily' ? (completedResult?.won ? 'won' : 'lost') : 'game_over',
@@ -915,11 +1001,41 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
           <div
             className="flex rounded-full bg-black/40 p-1 border border-neutral-800"
             role="group"
+            aria-label={t('common.board')}
+          >
+            {LANG_MODES.map((lang) => {
+              const active = lang === langMode;
+              const locked = runLocked && lang !== langMode;
+              return (
+                <button
+                  key={lang}
+                  type="button"
+                  disabled={locked}
+                  onClick={() => handleLangChange(lang)}
+                  className="flex-1 min-w-0 h-8 sm:h-9 px-1 rounded-full text-[10px] sm:text-xs font-semibold tracking-tight leading-none whitespace-nowrap transition-all disabled:opacity-30"
+                  style={{
+                    backgroundColor: active ? 'rgba(255,255,255,0.1)' : 'transparent',
+                    color: active ? '#FFFFFF' : '#888',
+                    boxShadow: active ? 'inset 0 0 0 1px rgba(255,255,255,0.35)' : undefined,
+                  }}
+                  aria-pressed={active}
+                  aria-label={t(LANG_I18N_KEYS[lang])}
+                >
+                  <span aria-hidden="true">{LANG_EMOJI[lang]} </span>
+                  {t(LANG_I18N_KEYS[lang])}
+                </button>
+              );
+            })}
+          </div>
+
+          <div
+            className="flex rounded-full bg-black/40 p-1 border border-neutral-800"
+            role="group"
             aria-label={t('common.difficulty')}
           >
             {POOLS.map((p) => {
               const status = mode === 'daily' ? getPoolStatus(dailyState, p) : 'pending';
-              const locked = mode === 'infinite' && poolLocked && p !== pool;
+              const locked = runLocked && p !== pool;
               const active = p === pool;
               const color = POOL_COLORS[p];
               const statusColor =
@@ -1151,6 +1267,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
               <ShareCard
                 mode={mode}
                 pool={pool}
+                lang={langMode}
                 streak={streak.current}
                 perfectDay={perfectDay}
                 result={
@@ -1210,6 +1327,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
               <ShareCard
                 mode={mode}
                 pool={pool}
+                lang={langMode}
                 score={score}
                 onCopy={() => void handleCopyShare()}
                 copied={copied}

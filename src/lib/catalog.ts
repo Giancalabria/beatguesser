@@ -1,41 +1,62 @@
-import type { Song, Pool } from '../types';
+import type { Song, Pool, LangMode } from '../types';
 import { getSupabase } from './supabase';
 
 const SEED_SONGS: Omit<Song, 'previewUrl'>[] = [
   // Easy — current worldwide chart smashes
-  { id: 'e1', title: 'Blinding Lights', artist: 'The Weeknd', pool: 'easy', itunesSearchTerm: 'Blinding Lights The Weeknd' },
-  { id: 'e2', title: 'Shape of You', artist: 'Ed Sheeran', pool: 'easy', itunesSearchTerm: 'Shape of You Ed Sheeran' },
-  { id: 'e3', title: 'As It Was', artist: 'Harry Styles', pool: 'easy', itunesSearchTerm: 'As It Was Harry Styles' },
-  { id: 'e4', title: 'Flowers', artist: 'Miley Cyrus', pool: 'easy', itunesSearchTerm: 'Flowers Miley Cyrus' },
-  { id: 'e5', title: 'Cruel Summer', artist: 'Taylor Swift', pool: 'easy', itunesSearchTerm: 'Cruel Summer Taylor Swift' },
+  { id: 'e1', title: 'Blinding Lights', artist: 'The Weeknd', pool: 'easy', lang: 'en', itunesSearchTerm: 'Blinding Lights The Weeknd' },
+  { id: 'e2', title: 'Shape of You', artist: 'Ed Sheeran', pool: 'easy', lang: 'en', itunesSearchTerm: 'Shape of You Ed Sheeran' },
+  { id: 'e3', title: 'As It Was', artist: 'Harry Styles', pool: 'easy', lang: 'en', itunesSearchTerm: 'As It Was Harry Styles' },
+  { id: 'e4', title: 'Flowers', artist: 'Miley Cyrus', pool: 'easy', lang: 'en', itunesSearchTerm: 'Flowers Miley Cyrus' },
+  { id: 'e5', title: 'Cruel Summer', artist: 'Taylor Swift', pool: 'easy', lang: 'en', itunesSearchTerm: 'Cruel Summer Taylor Swift' },
+  { id: 'e6', title: 'Despacito', artist: 'Luis Fonsi', pool: 'easy', lang: 'es', itunesSearchTerm: 'Despacito Luis Fonsi Daddy Yankee' },
+  { id: 'e7', title: 'Titi Me Preguntó', artist: 'Bad Bunny', pool: 'easy', lang: 'es', itunesSearchTerm: 'Titi Me Pregunto Bad Bunny' },
+  { id: 'e8', title: 'Provenza', artist: 'KAROL G', pool: 'easy', lang: 'es', itunesSearchTerm: 'Provenza Karol G' },
+  { id: 'e9', title: 'La Bachata', artist: 'Manuel Turizo', pool: 'easy', lang: 'es', itunesSearchTerm: 'La Bachata Manuel Turizo' },
+  { id: 'e10', title: 'Dákiti', artist: 'Bad Bunny', pool: 'easy', lang: 'es', itunesSearchTerm: 'Dakiti Bad Bunny Jhay Cortez' },
 
   // Medium — instantly recognizable global pop
-  { id: 'm1', title: 'Espresso', artist: 'Sabrina Carpenter', pool: 'medium', itunesSearchTerm: 'Espresso Sabrina Carpenter' },
-  { id: 'm2', title: 'Die With A Smile', artist: 'Lady Gaga', pool: 'medium', itunesSearchTerm: 'Die With A Smile Lady Gaga Bruno Mars' },
-  { id: 'm3', title: 'Levitating', artist: 'Dua Lipa', pool: 'medium', itunesSearchTerm: 'Levitating Dua Lipa' },
-  { id: 'm4', title: 'Stay', artist: 'The Kid LAROI', pool: 'medium', itunesSearchTerm: 'Stay The Kid LAROI Justin Bieber' },
-  { id: 'm5', title: 'Despacito', artist: 'Luis Fonsi', pool: 'medium', itunesSearchTerm: 'Despacito Luis Fonsi Daddy Yankee' },
+  { id: 'm1', title: 'Espresso', artist: 'Sabrina Carpenter', pool: 'medium', lang: 'en', itunesSearchTerm: 'Espresso Sabrina Carpenter' },
+  { id: 'm2', title: 'Die With A Smile', artist: 'Lady Gaga', pool: 'medium', lang: 'en', itunesSearchTerm: 'Die With A Smile Lady Gaga Bruno Mars' },
+  { id: 'm3', title: 'Levitating', artist: 'Dua Lipa', pool: 'medium', lang: 'en', itunesSearchTerm: 'Levitating Dua Lipa' },
+  { id: 'm4', title: 'Stay', artist: 'The Kid LAROI', pool: 'medium', lang: 'en', itunesSearchTerm: 'Stay The Kid LAROI Justin Bieber' },
+  { id: 'm5', title: 'Hawái', artist: 'Maluma', pool: 'medium', lang: 'es', itunesSearchTerm: 'Hawai Maluma' },
+  { id: 'm6', title: 'Gasolina', artist: 'Daddy Yankee', pool: 'medium', lang: 'es', itunesSearchTerm: 'Gasolina Daddy Yankee' },
+  { id: 'm7', title: 'Bailando', artist: 'Enrique Iglesias', pool: 'medium', lang: 'es', itunesSearchTerm: 'Bailando Enrique Iglesias' },
+  { id: 'm8', title: 'Felices los 4', artist: 'Maluma', pool: 'medium', lang: 'es', itunesSearchTerm: 'Felices los 4 Maluma' },
+  { id: 'm9', title: 'Me Porto Bonito', artist: 'Bad Bunny', pool: 'medium', lang: 'es', itunesSearchTerm: 'Me Porto Bonito Bad Bunny' },
 
   // Hard — famous hits, a bit less omnipresent this week
-  { id: 'h1', title: 'Take On Me', artist: 'a-ha', pool: 'hard', itunesSearchTerm: 'Take On Me a-ha' },
-  { id: 'h2', title: 'Uptown Funk', artist: 'Mark Ronson', pool: 'hard', itunesSearchTerm: 'Uptown Funk Mark Ronson Bruno Mars' },
-  { id: 'h3', title: 'Mr. Brightside', artist: 'The Killers', pool: 'hard', itunesSearchTerm: 'Mr Brightside The Killers' },
-  { id: 'h4', title: 'Somebody That I Used to Know', artist: 'Gotye', pool: 'hard', itunesSearchTerm: 'Somebody That I Used to Know Gotye' },
-  { id: 'h5', title: "Don't Stop Believin'", artist: 'Journey', pool: 'hard', itunesSearchTerm: "Don't Stop Believin Journey" },
+  { id: 'h1', title: 'Take On Me', artist: 'a-ha', pool: 'hard', lang: 'en', itunesSearchTerm: 'Take On Me a-ha' },
+  { id: 'h2', title: 'Uptown Funk', artist: 'Mark Ronson', pool: 'hard', lang: 'en', itunesSearchTerm: 'Uptown Funk Mark Ronson Bruno Mars' },
+  { id: 'h3', title: 'Mr. Brightside', artist: 'The Killers', pool: 'hard', lang: 'en', itunesSearchTerm: 'Mr Brightside The Killers' },
+  { id: 'h4', title: 'Somebody That I Used to Know', artist: 'Gotye', pool: 'hard', lang: 'en', itunesSearchTerm: 'Somebody That I Used to Know Gotye' },
+  { id: 'h5', title: "Don't Stop Believin'", artist: 'Journey', pool: 'hard', lang: 'en', itunesSearchTerm: "Don't Stop Believin Journey" },
+  { id: 'h6', title: 'Vivir Mi Vida', artist: 'Marc Anthony', pool: 'hard', lang: 'es', itunesSearchTerm: 'Vivir Mi Vida Marc Anthony' },
+  { id: 'h7', title: 'La Camisa Negra', artist: 'Juanes', pool: 'hard', lang: 'es', itunesSearchTerm: 'La Camisa Negra Juanes' },
+  { id: 'h8', title: 'Livin\' la Vida Loca', artist: 'Ricky Martin', pool: 'hard', lang: 'es', itunesSearchTerm: 'Livin la Vida Loca Ricky Martin' },
+  { id: 'h9', title: 'Macarena', artist: 'Los Del Rio', pool: 'hard', lang: 'es', itunesSearchTerm: 'Macarena Los Del Rio' },
 
   // Expert — huge worldwide radio hits, just not this week's #1
-  { id: 'x1', title: 'Viva La Vida', artist: 'Coldplay', pool: 'expert', itunesSearchTerm: 'Viva La Vida Coldplay' },
-  { id: 'x2', title: 'Rolling in the Deep', artist: 'Adele', pool: 'expert', itunesSearchTerm: 'Rolling in the Deep Adele' },
-  { id: 'x3', title: 'Seven Nation Army', artist: 'The White Stripes', pool: 'expert', itunesSearchTerm: 'Seven Nation Army White Stripes' },
-  { id: 'x4', title: 'Poker Face', artist: 'Lady Gaga', pool: 'expert', itunesSearchTerm: 'Poker Face Lady Gaga' },
-  { id: 'x5', title: 'Radioactive', artist: 'Imagine Dragons', pool: 'expert', itunesSearchTerm: 'Radioactive Imagine Dragons' },
+  { id: 'x1', title: 'Viva La Vida', artist: 'Coldplay', pool: 'expert', lang: 'en', itunesSearchTerm: 'Viva La Vida Coldplay' },
+  { id: 'x2', title: 'Rolling in the Deep', artist: 'Adele', pool: 'expert', lang: 'en', itunesSearchTerm: 'Rolling in the Deep Adele' },
+  { id: 'x3', title: 'Seven Nation Army', artist: 'The White Stripes', pool: 'expert', lang: 'en', itunesSearchTerm: 'Seven Nation Army White Stripes' },
+  { id: 'x4', title: 'Poker Face', artist: 'Lady Gaga', pool: 'expert', lang: 'en', itunesSearchTerm: 'Poker Face Lady Gaga' },
+  { id: 'x5', title: 'Radioactive', artist: 'Imagine Dragons', pool: 'expert', lang: 'en', itunesSearchTerm: 'Radioactive Imagine Dragons' },
+  { id: 'x6', title: 'Color Esperanza', artist: 'Diego Torres', pool: 'expert', lang: 'es', itunesSearchTerm: 'Color Esperanza Diego Torres' },
+  { id: 'x7', title: 'Corazón Partío', artist: 'Alejandro Sanz', pool: 'expert', lang: 'es', itunesSearchTerm: 'Corazon Partio Alejandro Sanz' },
+  { id: 'x8', title: 'Rayando el Sol', artist: 'Maná', pool: 'expert', lang: 'es', itunesSearchTerm: 'Rayando el Sol Mana' },
+  { id: 'x9', title: 'Waka Waka', artist: 'Shakira', pool: 'expert', lang: 'es', itunesSearchTerm: 'Waka Waka Shakira' },
 
   // Impossible — still household-name hits; harder clip, not obscure catalog
-  { id: 'i1', title: 'The Scientist', artist: 'Coldplay', pool: 'impossible', itunesSearchTerm: 'The Scientist Coldplay' },
-  { id: 'i2', title: 'Chasing Cars', artist: 'Snow Patrol', pool: 'impossible', itunesSearchTerm: 'Chasing Cars Snow Patrol' },
-  { id: 'i3', title: 'Use Somebody', artist: 'Kings of Leon', pool: 'impossible', itunesSearchTerm: 'Use Somebody Kings of Leon' },
-  { id: 'i4', title: 'Take Me to Church', artist: 'Hozier', pool: 'impossible', itunesSearchTerm: 'Take Me to Church Hozier' },
-  { id: 'i5', title: 'Pumped Up Kicks', artist: 'Foster the People', pool: 'impossible', itunesSearchTerm: 'Pumped Up Kicks Foster the People' },
+  { id: 'i1', title: 'The Scientist', artist: 'Coldplay', pool: 'impossible', lang: 'en', itunesSearchTerm: 'The Scientist Coldplay' },
+  { id: 'i2', title: 'Chasing Cars', artist: 'Snow Patrol', pool: 'impossible', lang: 'en', itunesSearchTerm: 'Chasing Cars Snow Patrol' },
+  { id: 'i3', title: 'Use Somebody', artist: 'Kings of Leon', pool: 'impossible', lang: 'en', itunesSearchTerm: 'Use Somebody Kings of Leon' },
+  { id: 'i4', title: 'Take Me to Church', artist: 'Hozier', pool: 'impossible', lang: 'en', itunesSearchTerm: 'Take Me to Church Hozier' },
+  { id: 'i5', title: 'Pumped Up Kicks', artist: 'Foster the People', pool: 'impossible', lang: 'en', itunesSearchTerm: 'Pumped Up Kicks Foster the People' },
+  { id: 'i6', title: 'A Dios le Pido', artist: 'Juanes', pool: 'impossible', lang: 'es', itunesSearchTerm: 'A Dios le Pido Juanes' },
+  { id: 'i7', title: 'El Perdón', artist: 'Nicky Jam', pool: 'impossible', lang: 'es', itunesSearchTerm: 'El Perdon Nicky Jam Enrique Iglesias' },
+  { id: 'i8', title: 'La Incondicional', artist: 'Luis Miguel', pool: 'impossible', lang: 'es', itunesSearchTerm: 'La Incondicional Luis Miguel' },
+  { id: 'i9', title: 'Eres Tú', artist: 'Mocedades', pool: 'impossible', lang: 'es', itunesSearchTerm: 'Eres Tu Mocedades' },
 ];
 
 interface ITunesMatch {
@@ -44,7 +65,7 @@ interface ITunesMatch {
 }
 
 const itunesCache = new Map<string, ITunesMatch>();
-const searchCatalogCache = new Map<Pool, Song[]>();
+const searchCatalogCache = new Map<string, Song[]>();
 const spotifySearchCache = new Map<
   string,
   { expiresAt: number; songs: Song[] }
@@ -220,8 +241,16 @@ export function getSeedCatalog(): Song[] {
   return SEED_SONGS.map((s) => ({ ...s }));
 }
 
-export function getSongsByPool(pool: Pool): Song[] {
-  return SEED_SONGS.filter((s) => s.pool === pool).map((s) => ({ ...s }));
+export function getSongsByPool(pool: Pool, lang: LangMode = 'global'): Song[] {
+  return SEED_SONGS.filter((s) => s.pool === pool && songMatchesLang(s.lang, lang)).map((s) => ({
+    ...s,
+  }));
+}
+
+function songMatchesLang(songLang: LangMode | undefined, board: LangMode): boolean {
+  if (board === 'global') return true;
+  if (board === 'es') return songLang === 'es';
+  return songLang !== 'es';
 }
 
 function stableHash(value: string): number {
@@ -236,7 +265,8 @@ function stableHash(value: string): number {
 /** Deterministic same-pool backups so every player receives the same replacement. */
 export function getBackupSongs(song: Song): Song[] {
   const primaryLabel = `${song.title}::${song.artist}`.toLocaleLowerCase();
-  const candidates = getSongsByPool(song.pool).filter(
+  const board = song.lang ?? 'global';
+  const candidates = getSongsByPool(song.pool, board).filter(
     (candidate) =>
       candidate.id !== song.id &&
       `${candidate.title}::${candidate.artist}`.toLocaleLowerCase() !== primaryLabel,
@@ -249,36 +279,42 @@ export function getBackupSongs(song: Song): Song[] {
 interface SongRow {
   id: string;
   spotify_id: string | null;
+  apple_id?: string | null;
   title: string;
   artist: string;
-  pool: Pool;
+  pool: Pool | null;
   preview_url: string | null;
+  artwork_url?: string | null;
 }
 
-function songFromRow(row: SongRow): Song {
+function songFromRow(row: SongRow, pool: Pool, lang?: LangMode): Song {
   return {
     id: row.id,
     spotifyId: row.spotify_id ?? undefined,
+    appleId: row.apple_id ?? undefined,
     title: row.title,
     artist: row.artist,
-    pool: row.pool,
+    pool,
+    lang,
     itunesSearchTerm: `${row.title} ${row.artist}`,
     previewUrl: row.preview_url ?? undefined,
+    imageUrl: row.artwork_url ?? undefined,
   };
 }
 
 /**
- * Songs available to the autocomplete. Supabase's `songs` table is the
- * history of Spotify daily picks, while the seed catalog remains the fallback.
+ * Songs available to the autocomplete. `pool_songs` is the chart reservoir;
+ * the seed catalog remains the fallback.
  */
-export async function getSearchCatalog(pool: Pool): Promise<Song[]> {
-  const cached = searchCatalogCache.get(pool);
+export async function getSearchCatalog(pool: Pool, lang: LangMode = 'global'): Promise<Song[]> {
+  const cacheKey = `${lang}:${pool}` as const;
+  const cached = searchCatalogCache.get(cacheKey);
   if (cached) return cached.map((song) => ({ ...song }));
 
-  const fallback = getSongsByPool(pool);
+  const fallback = getSongsByPool(pool, lang);
   const supabase = getSupabase();
   if (!supabase) {
-    searchCatalogCache.set(pool, fallback);
+    searchCatalogCache.set(cacheKey, fallback);
     return fallback.map((song) => ({ ...song }));
   }
 
@@ -289,19 +325,23 @@ export async function getSearchCatalog(pool: Pool): Promise<Song[]> {
   try {
     while (true) {
       const { data, error } = await supabase
-        .from('songs')
-        .select('id, spotify_id, title, artist, pool, preview_url')
+        .from('pool_songs')
+        .select('pool, songs!inner(id, spotify_id, apple_id, title, artist, preview_url, artwork_url)')
+        .eq('lang', lang)
         .eq('pool', pool)
         .range(from, from + pageSize - 1);
 
       if (error) throw error;
-      const rows = (data ?? []) as SongRow[];
-      remote.push(...rows.map(songFromRow));
+      const rows = (data ?? []) as Array<{ pool: Pool; songs: SongRow | SongRow[] | null }>;
+      for (const row of rows) {
+        const raw = Array.isArray(row.songs) ? row.songs[0] : row.songs;
+        if (raw) remote.push(songFromRow(raw, row.pool, lang));
+      }
       if (rows.length < pageSize) break;
       from += pageSize;
     }
   } catch (error) {
-    logDev('search catalog unavailable', pool, error);
+    logDev('search catalog unavailable', pool, lang, error);
   }
 
   const byLabel = new Map<string, Song>();
@@ -310,7 +350,7 @@ export async function getSearchCatalog(pool: Pool): Promise<Song[]> {
     if (!byLabel.has(key)) byLabel.set(key, song);
   }
   const catalog = [...byLabel.values()];
-  searchCatalogCache.set(pool, catalog);
+  searchCatalogCache.set(cacheKey, catalog);
   return catalog.map((song) => ({ ...song }));
 }
 

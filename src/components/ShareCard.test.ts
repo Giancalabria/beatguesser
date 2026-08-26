@@ -30,6 +30,7 @@ describe('share result', () => {
     );
 
     expect(text).toContain('¿Podés adivinarla con menos audio?');
+    expect(text).toContain('Mundial');
     expect(text).toContain('1 intento');
     expect(text).toContain('https://beatguesser.example/');
   });

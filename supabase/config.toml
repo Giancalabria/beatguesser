@@ -6,3 +6,6 @@ verify_jwt = false
 
 [functions.resolve-preview]
 verify_jwt = false
+
+[functions.ingest-charts]
+verify_jwt = false

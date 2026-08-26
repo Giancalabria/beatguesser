@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { setLanguage, type AppLanguage } from '../i18n';
+import { analytics } from '../lib/analytics';
 
 export default function LanguageSwitcher() {
   const { t, i18n } = useTranslation();
@@ -15,7 +16,12 @@ export default function LanguageSwitcher() {
         <button
           key={language}
           type="button"
-          onClick={() => void setLanguage(language)}
+          onClick={() => {
+            if (language === activeLanguage) return;
+            analytics.uiLanguageChanged({ from: activeLanguage, to: language });
+            analytics.setContext({ ui_language: language });
+            void setLanguage(language);
+          }}
           aria-pressed={activeLanguage === language}
           className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
             activeLanguage === language

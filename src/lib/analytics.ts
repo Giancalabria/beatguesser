@@ -1,98 +1,150 @@
 import posthog from 'posthog-js';
-import type { GameMode, Pool } from '../types';
+import type { GameMode, LangMode, Pool } from '../types';
 import { shouldEnablePostHog } from './posthog';
 
-type AnalyticsValue = string | number | boolean | null | undefined;
-type AnalyticsProps = Record<string, AnalyticsValue>;
+export interface GameContext {
+  mode: GameMode;
+  lang: LangMode;
+  pool: Pool;
+}
 
-function capture(event: string, properties?: AnalyticsProps): void {
+function capture(event: string, properties?: object): void {
   if (!shouldEnablePostHog()) return;
   posthog.capture(event, properties);
 }
 
 export const analytics = {
-  gameStarted(mode: GameMode, pool: Pool = 'easy'): void {
-    capture('game_started', { mode, pool });
+  setContext(props: Partial<GameContext> & { ui_language?: string }): void {
+    if (!shouldEnablePostHog()) return;
+    posthog.register(props);
   },
 
-  gameSessionEnded(props: {
-    mode: GameMode;
-    pool: Pool;
-    reason: 'home' | 'page_exit';
-    duration_seconds: number;
-    clips_played: number;
-    guesses: number;
-    rounds_completed: number;
-    score: number;
-  }): void {
+  gameStarted(props: GameContext): void {
+    capture('game_started', props);
+  },
+
+  gameSessionEnded(
+    props: GameContext & {
+      reason: 'home' | 'page_exit';
+      duration_seconds: number;
+      clips_played: number;
+      guesses: number;
+      rounds_completed: number;
+      score: number;
+    },
+  ): void {
     capture('game_session_ended', props);
   },
 
-  clipPlayed(props: {
-    mode: GameMode;
-    pool: Pool;
-    clip_seconds: number;
-    segment: number;
-  }): void {
+  clipPlayed(
+    props: GameContext & {
+      clip_seconds: number;
+      segment: number;
+    },
+  ): void {
     capture('clip_played', props);
   },
 
-  guessSubmitted(props: {
-    mode: GameMode;
-    pool: Pool;
-    correct: boolean;
-    attempt: number;
-    clip_seconds: number;
-    used_autocomplete: boolean;
-  }): void {
+  clipSkipped(
+    props: GameContext & {
+      clip_seconds: number;
+      segment: number;
+      next_clip_seconds?: number;
+    },
+  ): void {
+    capture('clip_skipped', props);
+  },
+
+  guessSubmitted(
+    props: GameContext & {
+      correct: boolean;
+      attempt: number;
+      clip_seconds: number;
+      used_autocomplete: boolean;
+    },
+  ): void {
     capture('guess_submitted', props);
   },
 
-  roundCompleted(props: {
-    mode: GameMode;
-    pool: Pool;
-    result: 'won' | 'lost';
-    completion: 'correct_guess' | 'surrender' | 'out_of_segments';
-    attempts: number;
-    clip_seconds: number;
-    score?: number;
-    lives_remaining?: number;
-  }): void {
+  roundCompleted(
+    props: GameContext & {
+      result: 'won' | 'lost';
+      completion: 'correct_guess' | 'surrender' | 'out_of_segments';
+      attempts: number;
+      clip_seconds: number;
+      score?: number;
+      lives_remaining?: number;
+      perfect?: boolean;
+    },
+  ): void {
     capture('round_completed', props);
   },
 
-  dailyChallengeCompleted(pools_won: number): void {
-    capture('daily_challenge_completed', { pools_won });
+  dailyChallengeCompleted(
+    props: GameContext & {
+      pools_won: number;
+      full_clear: boolean;
+      perfect_day: boolean;
+      streak: number;
+    },
+  ): void {
+    capture('daily_challenge_completed', props);
   },
 
-  infiniteGameCompleted(props: {
-    pool: Pool;
-    score: number;
-    session_rounds_completed: number;
-    is_new_high_score: boolean;
-  }): void {
+  infiniteGameCompleted(
+    props: GameContext & {
+      score: number;
+      session_rounds_completed: number;
+      is_new_high_score: boolean;
+    },
+  ): void {
     capture('infinite_game_completed', props);
   },
 
-  difficultySelected(props: {
-    mode: GameMode;
-    pool: Pool;
-    previous_pool: Pool;
-  }): void {
+  difficultySelected(
+    props: GameContext & {
+      previous_pool: Pool;
+    },
+  ): void {
     capture('difficulty_selected', props);
   },
 
-  infiniteGameRestarted(props: { pool: Pool; previous_score: number }): void {
+  boardSelected(
+    props: GameContext & {
+      previous_lang: LangMode;
+    },
+  ): void {
+    capture('board_selected', props);
+  },
+
+  infiniteGameRestarted(
+    props: GameContext & {
+      previous_score: number;
+    },
+  ): void {
     capture('infinite_game_restarted', props);
   },
 
-  resultShared(props: {
-    mode: GameMode;
-    pool: Pool;
-    method: 'copy' | 'native' | 'copy_fallback';
-    result: 'won' | 'lost' | 'game_over';
-    score?: number;
-  }): void {
+  resultShared(
+    props: GameContext & {
+      method: 'copy' | 'native' | 'copy_fallback';
+      result: 'won' | 'lost' | 'game_over';
+      score?: number;
+    },
+  ): void {
     capture('result_shared', props);
+  },
+
+  surrenderPrompted(
+    props: GameContext & {
+      attempts: number;
+      clip_seconds: number;
+    },
+  ): void {
+    capture('surrender_prompted', props);
+  },
+
+  uiLanguageChanged(props: { from: string; to: string }): void {
+    capture('ui_language_changed', props);
   },
 };
