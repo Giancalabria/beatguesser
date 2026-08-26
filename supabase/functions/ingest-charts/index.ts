@@ -39,12 +39,15 @@ Deno.serve(async (req) => {
     const supabase = createClient(mustEnv("SUPABASE_URL"), adminKey());
     const capturedOn = artDate();
     const marketStats: Record<string, number> = {};
-    const seen = new Map<string, {
-      title: string;
-      artist: string;
-      genreIds: Set<string>;
-      ranks: Map<string, number>;
-    }>();
+    const seen = new Map<
+      string,
+      {
+        title: string;
+        artist: string;
+        genreIds: Set<string>;
+        ranks: Map<string, number>;
+      }
+    >();
     const chartRows: Array<{
       market: string;
       apple_id: string;
@@ -68,6 +71,7 @@ Deno.serve(async (req) => {
         const genreIds = (song.genres ?? [])
           .map((g) => g.genreId)
           .filter((id): id is string => Boolean(id));
+
         chartRows.push({
           market,
           apple_id: appleId,
@@ -93,18 +97,32 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Upsert chart entries
     for (let i = 0; i < chartRows.length; i += 200) {
-      const { error } = await supabase.from("chart_entries").upsert(chartRows.slice(i, i + 200));
-      if (error) throw error;
+      const chunk = chartRows.slice(i, i + 200);
+      const { error } = await supabase.from("chart_entries").upsert(chunk);
+      if (error) throw new Error(`chart_entries upsert failed: ${error.message}`);
     }
 
+    // Lookup metadata & previews from iTunes
     const lookups = await lookupTracks([...seen.keys()]);
-    let upserted = 0;
-    const appleToSongId = new Map<string, string>();
+
+    // Prepare batch song payloads
+    const songPayloads: Array<{
+      apple_id: string;
+      title: string;
+      artist: string;
+      preview_url: string | null;
+      artwork_url: string | null;
+      explicit: boolean;
+      duration_ms: number | null;
+      lang: string;
+      pool: string;
+    }> = [];
 
     for (const [appleId, meta] of seen) {
       const lookup = lookups.get(appleId);
-      const payload = {
+      songPayloads.push({
         apple_id: appleId,
         title: lookup?.trackName ?? meta.title,
         artist: lookup?.artistName ?? meta.artist,
@@ -114,17 +132,28 @@ Deno.serve(async (req) => {
         duration_ms: lookup?.trackTimeMillis ?? null,
         lang: "und",
         pool: poolFromBestRank(Math.min(...meta.ranks.values())),
-      };
-      const { data, error } = await supabase
-        .from("songs")
-        .upsert(payload, { onConflict: "apple_id" })
-        .select("id")
-        .single();
-      if (error || !data) throw new Error(error?.message ?? `upsert failed for ${appleId}`);
-      appleToSongId.set(appleId, data.id);
-      upserted += 1;
+      });
     }
 
+    // Batch upsert songs (100 at a time)
+    const appleToSongId = new Map<string, string>();
+    let upserted = 0;
+    for (let i = 0; i < songPayloads.length; i += 100) {
+      const chunk = songPayloads.slice(i, i + 100);
+      const { data, error } = await supabase
+        .from("songs")
+        .upsert(chunk, { onConflict: "apple_id" })
+        .select("id, apple_id");
+      if (error) throw new Error(`songs upsert failed: ${error.message}`);
+      for (const row of data ?? []) {
+        if (row.apple_id && row.id) {
+          appleToSongId.set(row.apple_id, row.id);
+        }
+      }
+      upserted += (data ?? []).length;
+    }
+
+    // Fetch all historical chart entries to compute best ranks
     const history = await fetchAll<{
       market: string;
       apple_id: string;
@@ -133,13 +162,16 @@ Deno.serve(async (req) => {
       genre_ids: string[] | null;
     }>(supabase, "chart_entries", "market, apple_id, rank, captured_on, genre_ids");
 
-    const byApple = new Map<string, {
-      markets: Set<string>;
-      genreIds: Set<string>;
-      ranks: Map<string, number>;
-      days: Set<string>;
-      lastSeen: string;
-    }>();
+    const byApple = new Map<
+      string,
+      {
+        markets: Set<string>;
+        genreIds: Set<string>;
+        ranks: Map<string, number>;
+        days: Set<string>;
+        lastSeen: string;
+      }
+    >();
     for (const row of history) {
       const appleId = row.apple_id as string;
       const agg = byApple.get(appleId) ?? {
@@ -203,16 +235,23 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Deduplicate pool rows by (lang, song_id)
+    const poolRowMap = new Map<string, (typeof poolRows)[0]>();
+    for (const row of poolRows) {
+      poolRowMap.set(`${row.lang}:${row.song_id}`, row);
+    }
+    const dedupedPoolRows = [...poolRowMap.values()];
+
     const { error: deleteError } = await supabase
       .from("pool_songs")
       .delete()
       .in("lang", [...LANG_MODES]);
-    if (deleteError) throw deleteError;
+    if (deleteError) throw new Error(`pool_songs delete failed: ${deleteError.message}`);
 
-    for (let i = 0; i < poolRows.length; i += 200) {
-      const chunk = poolRows.slice(i, i + 200);
+    for (let i = 0; i < dedupedPoolRows.length; i += 200) {
+      const chunk = dedupedPoolRows.slice(i, i + 200);
       const { error } = await supabase.from("pool_songs").insert(chunk);
-      if (error) throw error;
+      if (error) throw new Error(`pool_songs insert failed: ${error.message}`);
     }
 
     return json({
@@ -220,10 +259,15 @@ Deno.serve(async (req) => {
       captured_on: capturedOn,
       markets: marketStats,
       songs_upserted: upserted,
-      pool_rows: poolRows.length,
+      pool_rows: dedupedPoolRows.length,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message =
+      err instanceof Error
+        ? err.message
+        : typeof err === "object"
+          ? JSON.stringify(err)
+          : String(err);
     return json({ ok: false, error: message }, 400);
   }
 });
@@ -245,8 +289,11 @@ async function fetchAll<T>(
   const page = 1000;
   const out: T[] = [];
   for (let from = 0; ; from += page) {
-    const { data, error } = await supabase.from(table).select(columns).range(from, from + page - 1);
-    if (error) throw error;
+    const { data, error } = await supabase
+      .from(table)
+      .select(columns)
+      .range(from, from + page - 1);
+    if (error) throw new Error(`fetchAll ${table} failed: ${error.message}`);
     const rows = (data ?? []) as T[];
     out.push(...rows);
     if (rows.length < page) break;
@@ -255,27 +302,37 @@ async function fetchAll<T>(
 }
 
 async function fetchChart(market: string): Promise<ChartSong[]> {
-  const url =
-    `https://rss.marketingtools.apple.com/api/v2/${market}/music/most-played/100/songs.json`;
+  const url = `https://rss.marketingtools.apple.com/api/v2/${market}/music/most-played/100/songs.json`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`chart ${market} ${res.status}`);
-  const data = await res.json() as { feed?: { results?: ChartSong[] } };
+  if (!res.ok) throw new Error(`chart ${market} HTTP ${res.status}`);
+  const data = (await res.json()) as { feed?: { results?: ChartSong[] } };
   return data.feed?.results ?? [];
 }
 
 async function lookupTracks(appleIds: string[]): Promise<Map<string, LookupTrack>> {
   const out = new Map<string, LookupTrack>();
-  for (let i = 0; i < appleIds.length; i += 20) {
-    const chunk = appleIds.slice(i, i + 20);
-    const url = new URL("https://itunes.apple.com/lookup");
-    url.searchParams.set("id", chunk.join(","));
-    url.searchParams.set("entity", "song");
-    const res = await fetch(url);
-    if (!res.ok) continue;
-    const data = await res.json() as { results?: LookupTrack[] };
-    for (const track of data.results ?? []) {
-      if (track.trackId) out.set(String(track.trackId), track);
-    }
+  const chunks: string[][] = [];
+  for (let i = 0; i < appleIds.length; i += 50) {
+    chunks.push(appleIds.slice(i, i + 50));
   }
+
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      try {
+        const url = new URL("https://itunes.apple.com/lookup");
+        url.searchParams.set("id", chunk.join(","));
+        url.searchParams.set("entity", "song");
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = (await res.json()) as { results?: LookupTrack[] };
+        for (const track of data.results ?? []) {
+          if (track.trackId) out.set(String(track.trackId), track);
+        }
+      } catch {
+        // ignore lookup errors for individual chunks
+      }
+    }),
+  );
+
   return out;
 }

@@ -27,12 +27,24 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(mustEnv("SUPABASE_URL"), adminKey());
     const { data: rules, error: rulesError } = await supabase.from("pick_rules").select("*");
-    if (rulesError) throw rulesError;
+    if (rulesError) throw new Error(`pick_rules error: ${rulesError.message}`);
 
     const results: Record<string, unknown>[] = [];
     for (const date of targets) {
+      // Fetch existing picks on this date across ALL languages to prevent same-day duplicates
+      const { data: existingDatePicks } = await supabase
+        .from("daily_picks")
+        .select("song_id, lang, pool")
+        .eq("date", date);
+
+      const sessionBlocked = new Set<string>();
+      if (!force && existingDatePicks) {
+        for (const pick of existingDatePicks) {
+          if (pick.song_id) sessionBlocked.add(pick.song_id);
+        }
+      }
+
       for (const lang of langs) {
-        const sessionBlocked = new Set<string>();
         for (const pool of POOLS) {
           const rule = (rules ?? []).find((r) => r.lang === lang && r.pool === pool) as
             | PickRule
@@ -45,7 +57,12 @@ Deno.serve(async (req) => {
 
     return json({ ok: true, dates: targets, langs, results });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message =
+      err instanceof Error
+        ? err.message
+        : typeof err === "object"
+          ? JSON.stringify(err)
+          : String(err);
     return json({ ok: false, error: message }, 400);
   }
 });
@@ -99,29 +116,56 @@ async function pickPool(
     .eq("lang", lang)
     .eq("pool", pool)
     .maybeSingle();
-  if (existing?.song_id) {
+
+  if (existing?.song_id && !force) {
+    sessionBlocked.add(existing.song_id);
     return { date, lang, pool, status: "already_set", song_id: existing.song_id };
   }
 
-  const blocked = await recentSongIds(supabase, lang, date, rule.cooldown_days);
-  for (const id of sessionBlocked) blocked.add(id);
-
+  // Fetch candidates from pool_songs
   const { data: candidates, error } = await supabase
     .from("pool_songs")
     .select("song_id, best_rank, songs!inner(id, title, artist, preview_url)")
     .eq("lang", lang)
     .eq("pool", pool);
-  if (error) throw error;
+  if (error) throw new Error(`pool_songs query failed: ${error.message}`);
 
-  const eligible = (candidates ?? []).filter((row) => {
-    if (blocked.has(row.song_id)) return false;
+  if (!candidates || candidates.length === 0) {
+    return { date, lang, pool, status: "no_candidate", detail: "no songs in pool_songs" };
+  }
+
+  // Historical cooldown across all boards
+  const cooldownBlocked = await recentSongIds(supabase, date, rule.cooldown_days);
+  const fullBlocked = new Set([...cooldownBlocked, ...sessionBlocked]);
+
+  // Try picking strictly respecting cooldown and same-day blocklist
+  let eligible = candidates.filter((row) => {
+    if (fullBlocked.has(row.song_id)) return false;
     const song = unwrapSong(row.songs);
     if (!song) return false;
     if (rule.require_preview && !song.preview_url) return false;
     return true;
   });
+
+  // Fallback if cooldown exhausted the pool: relax historical cooldown, but STRICTLY keep same-day sessionBlocked
   if (eligible.length === 0) {
-    return { date, lang, pool, status: "no_candidate", detail: "empty pool after cooldown" };
+    eligible = candidates.filter((row) => {
+      if (sessionBlocked.has(row.song_id)) return false;
+      const song = unwrapSong(row.songs);
+      if (!song) return false;
+      if (rule.require_preview && !song.preview_url) return false;
+      return true;
+    });
+  }
+
+  if (eligible.length === 0) {
+    return {
+      date,
+      lang,
+      pool,
+      status: "no_candidate",
+      detail: "all candidates already picked today across boards",
+    };
   }
 
   const chosen = eligible[Math.floor(Math.random() * eligible.length)];
@@ -130,13 +174,16 @@ async function pickPool(
     return { date, lang, pool, status: "no_candidate", detail: "missing song join" };
   }
 
-  const { error: pickError } = await supabase.from("daily_picks").insert({
-    date,
-    lang,
-    pool,
-    song_id: song.id,
-  });
-  if (pickError) throw new Error(pickError.message);
+  const { error: pickError } = await supabase.from("daily_picks").upsert(
+    {
+      date,
+      lang,
+      pool,
+      song_id: song.id,
+    },
+    { onConflict: "date,lang,pool" },
+  );
+  if (pickError) throw new Error(`daily_picks upsert failed: ${pickError.message}`);
 
   sessionBlocked.add(song.id);
   return {
@@ -153,7 +200,6 @@ async function pickPool(
 
 async function recentSongIds(
   supabase: SupabaseClient,
-  lang: LangMode,
   date: string,
   cooldownDays: number,
 ): Promise<Set<string>> {
@@ -161,7 +207,6 @@ async function recentSongIds(
   const { data } = await supabase
     .from("daily_picks")
     .select("song_id")
-    .eq("lang", lang)
     .gte("date", from)
     .lt("date", date);
   return new Set((data ?? []).map((row) => row.song_id as string));
