@@ -1,0 +1,2 @@
+[functions.ingest-charts]
+verify_jwt = false
