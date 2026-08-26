@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Analytics, track } from '@vercel/analytics/react';
+import { Analytics } from '@vercel/analytics/react';
 import type { GameMode } from './types';
+import { analytics } from './lib/analytics';
 import Home from './components/Home';
 import PlayScreen from './components/PlayScreen';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -22,10 +23,7 @@ export default function App() {
         ) : (
           <Home
             onSelect={(selectedMode) => {
-              track('Game Started', {
-                mode: selectedMode,
-                pool: 'easy',
-              });
+              analytics.gameStarted(selectedMode);
               setMode(selectedMode);
               setScreen('play');
             }}

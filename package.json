@@ -16,9 +16,11 @@
     "fn:deploy": "supabase functions deploy pick-daily search-songs resolve-preview"
   },
   "dependencies": {
+    "@posthog/react": "^1.10.5",
     "@supabase/supabase-js": "^2.49.1",
     "@vercel/analytics": "^2.0.1",
     "i18next": "^26.4.0",
+    "posthog-js": "^1.419.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-i18next": "^17.0.12"

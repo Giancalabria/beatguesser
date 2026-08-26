@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { track } from '@vercel/analytics/react';
+import { analytics } from '../lib/analytics';
 import type { DailyResult, DailyState, GameMode, Pool, Song } from '../types';
 import {
   CLIP_MARKS,
@@ -170,7 +170,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
       const session = sessionAnalyticsRef.current;
       if (session.ended) return;
       session.ended = true;
-      track('Game Session Ended', {
+      analytics.gameSessionEnded({
         mode,
         pool: session.pool,
         reason,
@@ -489,7 +489,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
         .play(currentDuration)
         .then(() => {
           sessionAnalyticsRef.current.clipsPlayed += 1;
-          track('Clip Played', {
+          analytics.clipPlayed({
             mode,
             pool,
             clip_seconds: currentDuration,
@@ -535,7 +535,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
         setStreak(getVisibleStreak(getDateKey()));
         setShowResultDialog(true);
         sessionAnalyticsRef.current.roundsCompleted += 1;
-        track('Round Completed', {
+        analytics.roundCompleted({
           mode,
           pool,
           result: won ? 'won' : 'lost',
@@ -548,11 +548,11 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
           (dailyPool) => getPoolStatus(nextDailyState, dailyPool) !== 'pending',
         );
         if (completedPools.length === POOLS.length) {
-          track('Daily Challenge Completed', {
-            pools_won: POOLS.filter(
+          analytics.dailyChallengeCompleted(
+            POOLS.filter(
               (dailyPool) => getPoolStatus(nextDailyState, dailyPool) === 'won',
             ).length,
-          });
+          );
         }
       }
     },
@@ -570,7 +570,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
       if (currentSong) nextUsed.add(currentSong.id);
       setUsedIds(nextUsed);
       sessionAnalyticsRef.current.roundsCompleted += 1;
-      track('Round Completed', {
+      analytics.roundCompleted({
         mode,
         pool,
         result: 'lost',
@@ -587,7 +587,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
         setInfiniteOver(true);
         saveInfiniteHighScore(pool, score);
         setHighScore((hs) => Math.max(hs, score));
-        track('Infinite Game Completed', {
+        analytics.infiniteGameCompleted({
           pool,
           score,
           session_rounds_completed: sessionAnalyticsRef.current.roundsCompleted,
@@ -663,7 +663,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
       ? isCorrectGuess('', currentSong, selectedSong)
       : isCorrectGuess(text, currentSong);
     sessionAnalyticsRef.current.guesses += 1;
-    track('Guess Submitted', {
+    analytics.guessSubmitted({
       mode,
       pool,
       correct,
@@ -682,7 +682,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
         setUsedIds(nextUsed);
         sessionAnalyticsRef.current.roundsCompleted += 1;
         sessionAnalyticsRef.current.score = nextScore;
-        track('Round Completed', {
+        analytics.roundCompleted({
           mode,
           pool,
           result: 'won',
@@ -732,7 +732,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     setPool(p);
     sessionAnalyticsRef.current.pool = p;
     sessionAnalyticsRef.current.score = 0;
-    track('Difficulty Selected', {
+    analytics.difficultySelected({
       mode,
       pool: p,
       previous_pool: pool,
@@ -777,7 +777,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     setRoundStatus('playing');
     setSegmentIndex(0);
     sessionAnalyticsRef.current.score = 0;
-    track('Infinite Game Restarted', {
+    analytics.infiniteGameRestarted({
       pool,
       previous_score: score,
     });
@@ -788,7 +788,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
     const text = buildShareText(mode, pool, completedResult, score, undefined, shareExtras);
     try {
       await navigator.clipboard.writeText(text);
-      track('Result Shared', {
+      analytics.resultShared({
         mode,
         pool,
         method: 'copy',
@@ -814,7 +814,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
           text: message,
           url,
         });
-        track('Result Shared', {
+        analytics.resultShared({
           mode,
           pool,
           method: 'native',
@@ -824,7 +824,7 @@ export default function PlayScreen({ mode, onHome }: PlayScreenProps) {
         });
       } else {
         await navigator.clipboard.writeText(buildShareText(mode, pool, completedResult, score, url, shareExtras));
-        track('Result Shared', {
+        analytics.resultShared({
           mode,
           pool,
           method: 'copy_fallback',

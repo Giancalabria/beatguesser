@@ -36,7 +36,7 @@ export default function SongCombobox({
   };
 
   return (
-    <div className="relative flex-1 min-w-0">
+    <div className="relative flex-1 min-w-0 ph-no-capture">
       <label htmlFor={`${listboxId}-input`} className="sr-only">
         {t('combobox.label')}
       </label>
