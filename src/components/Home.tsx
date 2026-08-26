@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { GameMode, LangMode } from '../types';
-import { LANG_EMOJI, LANG_I18N_KEYS, LANG_MODES, POOLS } from '../types';
+import { POOLS } from '../types';
 import { getDateKey } from '../lib/daily';
 import { analytics } from '../lib/analytics';
 import {
@@ -21,16 +21,24 @@ export default function Home({ onSelect }: HomeProps) {
   const { t, i18n } = useTranslation();
   const [dateKey, setDateKey] = useState(getDateKey);
   const preferredLang = loadPreferredLangMode();
+
   useEffect(() => {
     const interval = window.setInterval(() => setDateKey(getDateKey()), 30_000);
     return () => window.clearInterval(interval);
   }, []);
+
   useEffect(() => {
     analytics.setContext({
       lang: preferredLang,
       ui_language: i18n.resolvedLanguage?.startsWith('en') ? 'en' : 'es',
     });
   }, [i18n.resolvedLanguage, preferredLang]);
+
+  const dailyState = loadDailyState(dateKey, preferredLang);
+  const dailyCompleted = POOLS.filter(
+    (pool) => getPoolStatus(dailyState, pool) !== 'pending',
+  ).length;
+  const streak = getVisibleStreak(dateKey, preferredLang);
 
   return (
     <div className="relative min-h-dvh flex flex-col items-center justify-center">
@@ -47,47 +55,30 @@ export default function Home({ onSelect }: HomeProps) {
             <p className="text-neutral-400 text-sm sm:text-base">
               {t('home.tagline')}
             </p>
+            {streak.current > 0 && (
+              <div className="mt-3 flex justify-center">
+                <StreakBadge count={streak.current} />
+              </div>
+            )}
           </div>
 
           <div className="w-full flex flex-col gap-2.5">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-neutral-500 font-medium px-1">
-              {t('common.daily')}
-            </p>
-            {LANG_MODES.map((lang) => {
-              const dailyState = loadDailyState(dateKey, lang);
-              const dailyCompleted = POOLS.filter(
-                (pool) => getPoolStatus(dailyState, pool) !== 'pending',
-              ).length;
-              const streak = getVisibleStreak(dateKey, lang);
-              return (
-                <button
-                  key={lang}
-                  type="button"
-                  onClick={() => onSelect('daily', lang)}
-                  className="w-full py-3.5 px-5 rounded-2xl bg-white/5 border border-easy/80 text-left hover:bg-easy/10 transition-colors active:scale-[0.98]"
-                >
-                  <span className="flex items-center justify-between gap-3">
-                    <span className="text-easy font-semibold text-base">
-                      <span aria-hidden="true">{LANG_EMOJI[lang]} </span>
-                      {t(LANG_I18N_KEYS[lang])}
-                    </span>
-                    {streak.current > 0 && <StreakBadge count={streak.current} />}
-                  </span>
-                  <span className="mt-1 block text-xs font-medium text-neutral-400">
-                    {t('home.boardProgress', { count: dailyCompleted })}
-                  </span>
-                </button>
-              );
-            })}
+            <button
+              type="button"
+              onClick={() => onSelect('daily', preferredLang)}
+              className="w-full py-3.5 px-5 rounded-2xl bg-white/5 border border-easy/80 text-easy font-semibold text-base text-center hover:bg-easy/10 transition-colors active:scale-[0.98]"
+            >
+              <span className="block">{t('common.daily')}</span>
+              <span className="mt-1 block text-xs font-medium text-neutral-400">
+                {t('home.boardProgress', { count: dailyCompleted })}
+              </span>
+            </button>
             <button
               type="button"
               onClick={() => onSelect('infinite', preferredLang)}
-              className="w-full py-3.5 px-5 rounded-2xl bg-white/5 border border-impossible/80 text-impossible font-semibold text-base hover:bg-impossible/10 transition-colors active:scale-[0.98] mt-1"
+              className="w-full py-3.5 px-5 rounded-2xl bg-white/5 border border-impossible/80 text-impossible font-semibold text-base text-center hover:bg-impossible/10 transition-colors active:scale-[0.98]"
             >
               <span className="block">{t('common.infinite')}</span>
-              <span className="mt-1 block text-xs font-medium text-neutral-400">
-                {t('home.infiniteBoard', { board: t(LANG_I18N_KEYS[preferredLang]) })}
-              </span>
             </button>
           </div>
 
